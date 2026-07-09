@@ -75,6 +75,32 @@ class TestLoadOrganizations:
         assert orgs[1].active is False
         assert orgs[1].notes == "On hold"
 
+    def test_watchlist_and_suggested_stage_are_not_active(self):
+        """Orgs staged Watchlist or Suggested are parked, not monitored, even if Active."""
+        table = FakeTable()
+        table.records = [
+            {"id": "rec1", "fields": {"Name": "Parked A", "Events URL": "https://a.com/e",
+                                      "Source Type": "rss", "Active": True, "Stage": "Watchlist"}},
+            {"id": "rec2", "fields": {"Name": "Parked B", "Events URL": "https://b.com/e",
+                                      "Source Type": "rss", "Active": True, "Stage": "Suggested"}},
+        ]
+        orgs = load_organizations(table)
+        assert orgs[0].active is False
+        assert orgs[1].active is False
+
+    def test_approved_or_absent_stage_stays_active(self):
+        """Stage 'Approved' or no Stage field at all leaves Active as-is."""
+        table = FakeTable()
+        table.records = [
+            {"id": "rec1", "fields": {"Name": "Approved Org", "Events URL": "https://a.com/e",
+                                      "Source Type": "rss", "Active": True, "Stage": "Approved"}},
+            {"id": "rec2", "fields": {"Name": "No Stage Org", "Events URL": "https://b.com/e",
+                                      "Source Type": "rss", "Active": True}},
+        ]
+        orgs = load_organizations(table)
+        assert orgs[0].active is True
+        assert orgs[1].active is True
+
     def test_load_organizations_missing_fields(self):
         """Missing fields should default sensibly."""
         table = FakeTable()

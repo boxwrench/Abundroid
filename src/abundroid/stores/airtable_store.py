@@ -19,12 +19,15 @@ def load_organizations(table) -> list[Organization]:
     orgs = []
     for record in table.all():
         fields = record.get("fields", {})
+        # Stage "Watchlist"/"Suggested" parks an org: humans are still deciding,
+        # so the bot must not monitor it even if Active is checked.
+        stage = fields.get("Stage", "Approved")
         org = Organization(
             name=fields.get("Name", ""),
             website=fields.get("Website", ""),
             events_url=fields.get("Events URL", ""),
             source_type=fields.get("Source Type", ""),
-            active=fields.get("Active", False),  # checkbox: absent = False
+            active=fields.get("Active", False) and stage == "Approved",
             notes=fields.get("Notes", ""),
         )
         orgs.append(org)

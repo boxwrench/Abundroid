@@ -1,73 +1,102 @@
 # Abundroid
 
-Abundroid is an event-discovery and review pipeline for the abundance ecosystem. It monitors a curated list of organizations (housing/YIMBY, energy, permitting reform, state capacity, transit, water, science policy, government modernization), pulls upcoming events from their feeds, deduplicates them, and puts them in a human review queue (Airtable) before publishing to a weekly digest or calendar.
+**Abundroid is a robot assistant that checks the events pages of the
+organizations you care about, so nobody on your team has to.**
 
-## How It Works
+Every time it runs, it visits each organization on your list, collects any
+upcoming events it finds, skips everything it has already seen, and adds only
+the genuinely new ones to a shared "Needs Review" list in Airtable. A human
+looks at that list, fixes anything wrong, and approves or rejects each event.
+Only human-approved events ever go anywhere public.
 
-- **Table-driven configuration**: Non-technical admins control everything via Airtable tables—Organizations (what to monitor), Topics (how to categorize), Events (review queue + archive), and Run Log (execution history).
-- **Event fetching**: The bot reads active organizations, fetches events from their sources (iCal or RSS), and normalizes each event to a standard format.
-- **Deterministic deduplication**: Computes a deterministic `event_uid` from the registration URL (if present) or a hash of organizer + title + date, preventing duplicates on re-runs.
-- **Review queue**: New events (new uid) land with status "Needs Review"; already-seen uids just update Last Seen, keeping the queue free of re-run duplicates.
-- **No credentials shipped**: The codebase ships with no secrets. Each deployment supplies API keys via environment variables, or runs in local CSV mode (zero accounts needed).
-- **Scheduled runs**: Designed to run as a cron job (e.g., on GitHub Actions) to continuously monitor sources.
+That's the whole idea: **the bot does the tedious checking; people keep all
+the judgment calls.**
 
-## Quickstart (No Credentials)
+> **Ready to set it up?** Follow the step-by-step guide:
+> **[docs/SETUP.md](docs/SETUP.md)** — from zero to reviewing real events in
+> about 30–45 minutes.
 
-Try Abundroid with zero accounts:
+## What it can do today
+
+- Watch any number of organizations that publish a **calendar feed** (iCal) or
+  a **news feed** (RSS) — you just paste the address into a table.
+- Collect each event's title, date, location, description, and registration
+  link, and put it in your review queue.
+- **Never show you the same event twice.** Each event gets a fingerprint; on
+  every run the bot recognizes events it has already delivered and quietly
+  notes "still there" instead of re-adding them. Your review queue only ever
+  contains new work.
+- Keep going when one source breaks — a dead link on one org's site never
+  stops the other orgs from being checked.
+- Run entirely without any accounts (using simple spreadsheet files) so anyone
+  can try it before connecting the real Airtable base.
+
+## What it deliberately does NOT do
+
+These are design promises, not missing features:
+
+- It **never publishes anything without human approval.**
+- It **never makes up details.** If a source doesn't state the date, the date
+  arrives blank and a human fills it in.
+- It **never deletes or overwrites your edits.** Humans win every conflict.
+- It doesn't scrape social media, bypass logins or paywalls, or crawl the
+  open internet — it only visits the specific pages you listed.
+
+## How your team controls it
+
+Everything is driven by ordinary Airtable tables — no code, no config files:
+
+| You want to… | You do… |
+|---|---|
+| Watch a new organization | Add a row to the **Organizations** table |
+| Stop watching one (maybe temporarily) | Uncheck its **Active** box — never delete |
+| Park a "maybe" organization | Set its **Stage** to `Watchlist` or `Suggested` |
+| Change how events get categorized | Edit keywords in the **Topics** table *(tagging arrives in Phase 2)* |
+| Approve / reject / fix an event | Work the **Review Queue** view in the **Events** table |
+| See which sources are broken | Check the **Source Health** view |
+
+Things that currently *do* need a developer: adding a brand-new source type,
+changing how often the bot runs, and changing the digest format (once digests
+exist). The [roadmap](docs/ROADMAP.md) shows what's coming in what order.
+
+## Where the project stands
+
+**Working now (Phase 1):** the complete pipeline described above, for iCal and
+RSS sources, with 72 automated tests.
+
+**Next (Phase 2):** reading normal event webpages (covers Eventbrite, Luma,
+and most WordPress sites), automatic topic tagging from your Topics table, and
+flagging events whose details changed after approval.
+
+**Then (Phases 3–4):** AI-assisted extraction for stubborn pages, automatic
+scheduled runs, source health tracking, and the weekly digest.
+
+The full plan, including long-term ideas and what was deliberately postponed,
+lives in **[docs/ROADMAP.md](docs/ROADMAP.md)**. The original planning
+documents are archived in `archive/`.
+
+## Key documents
+
+- **[docs/SETUP.md](docs/SETUP.md)** — install it and connect your own
+  Airtable and organizations. **Start here.**
+- **[docs/airtable-schema.md](docs/airtable-schema.md)** — the exact Airtable
+  base layout to create (tables, fields, views).
+- **[docs/ROADMAP.md](docs/ROADMAP.md)** — what's built, what's next, what's
+  postponed and why.
+
+## For developers
+
+Python 3.11+, no database — state lives in Airtable (or local CSV in
+credential-free mode). Credentials come only from environment variables; see
+`.env.example`.
 
 ```bash
-git clone https://github.com/boxwrench/Abundroid.git
-cd Abundroid
-python -m venv .venv
-source .venv/bin/activate  # or `.venv\Scripts\activate` on Windows
 pip install -e ".[dev]"
+python -m pytest          # 72 tests, all offline (golden fixtures)
+abundroid run --dry-run   # fetch and print, write nothing
 ```
 
-Edit `data/organizations.csv` to add a few seed organizations (or use the example row). Then run:
-
-```bash
-abundroid run
-```
-
-Events will be written to `output/events.csv` with status "Needs Review". You can review them, update status, and re-run without losing your edits (uids prevent duplicates).
-
-## Connecting Your Own Airtable
-
-To use Airtable instead of local CSV:
-
-1. Create a new Airtable base and set up the schema (see `docs/airtable-schema.md` for the exact field structure).
-2. Create a [personal access token](https://airtable.com/create/tokens) with `data.records:read` and `data.records:write` scopes, restricted to your new base.
-3. Copy `.env.example` to `.env` and fill in:
-   ```
-   AIRTABLE_API_KEY=your_token_here
-   AIRTABLE_BASE_ID=your_base_id_here
-   ```
-4. Run `abundroid run`. Events will be upserted into the Events table, and the Run Log will capture execution details.
-
-Optional: set `AIRTABLE_ORGS_TABLE` and `AIRTABLE_EVENTS_TABLE` if you renamed the tables.
-
-## Configuration Reference
-
-| Environment Variable | Purpose | Example |
-|---|---|---|
-| `AIRTABLE_API_KEY` | Personal access token for Airtable (optional) | `pat...` |
-| `AIRTABLE_BASE_ID` | Base ID (optional) | `appXXX` |
-| `AIRTABLE_ORGS_TABLE` | Organizations table name (default: `Organizations`) | `Sources` |
-| `AIRTABLE_EVENTS_TABLE` | Events table name (default: `Events`) | `Calendar` |
-| `ANTHROPIC_API_KEY` | Claude API key for AI extraction (Phase 3, not yet used) | `sk-ant-...` |
-
-## Project Status & Roadmap
-
-**Phase 1 (In Progress)**: iCal and RSS source types, deduplication, local CSV and Airtable storage.
-
-**Phase 2 (Planned)**: schema.org/JSON-LD page scraping (covers Eventbrite, Luma, WordPress), keyword-based topic tagging, change detection for previously seen events.
-
-**Phase 3 (Planned)**: AI-assisted event extraction for plain HTML pages (Claude API), source health tracking, GitHub Actions scheduling with cron.
-
-**Phase 4 (Planned)**: Weekly digest generation, scaling to 30–50 organizations, integration with published calendar.
-
-## Design Notes
-
-- **RSS special case**: RSS post dates are publication dates, not event dates. Events sourced from RSS arrive with no start date; the human reviewer fills it in. The system never fabricates event details.
-- **Browser automation**: Out of scope. Use iCal/RSS/schema.org feeds; extraction is AI-assisted (Phase 3), not browser-driven.
-- **Project briefs**: The original requirement PDFs are archived in `archive/`; the living, reconciled plan is `docs/ROADMAP.md`.
+Layout: `src/abundroid/adapters/` (one small module per source type, each
+exposing `parse(text, org) -> list[Event]`), `stores/` (CSV and Airtable
+persistence behind the same upsert interface), `uid.py` (the deduplication
+fingerprint), `pipeline.py` (orchestration), `cli.py` (entry point).
