@@ -1,0 +1,15 @@
+# Secrets — never commit credentials
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+
+# Local run output (dry-run mode writes here)
+output/

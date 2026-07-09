@@ -1,0 +1,26 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Abundroid//Test//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:event-1@example.com
+DTSTART;TZID=America/New_York:20260709T180000
+DTEND;TZID=America/New_York:20260709T190000
+SUMMARY:Timed Event with Details
+LOCATION:Conference Center, Room A
+DESCRIPTION:This is a detailed timed event with location and description.
+URL:https://example.com/events/timed
+END:VEVENT
+BEGIN:VEVENT
+UID:event-2@example.com
+DTSTART;VALUE=DATE:20260710
+SUMMARY:All-Day Event
+END:VEVENT
+BEGIN:VEVENT
+UID:event-3@example.com
+DTSTART:20260711T100000Z
+LOCATION:Some Location
+DESCRIPTION:Event without summary should be skipped.
+END:VEVENT
+END:VCALENDAR

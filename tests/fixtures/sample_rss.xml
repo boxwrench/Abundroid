@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Sample Event Feed</title>
+    <link>https://example.com</link>
+    <description>Sample RSS feed for testing</description>
+    <item>
+      <title>Community Meetup</title>
+      <link>https://example.com/events/1</link>
+      <description>Join us for a community meetup with food and networking.</description>
+      <pubDate>Wed, 09 Jul 2025 18:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Workshop Session</title>
+      <link>https://example.com/events/2</link>
+    </item>
+    <item>
+      <title>Orphaned Event</title>
+    </item>
+  </channel>
+</rss>

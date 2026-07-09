@@ -1,0 +1,31 @@
+[project]
+name = "abundroid"
+version = "0.1.0"
+description = "Event-discovery and review pipeline for the abundance ecosystem"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "icalendar>=5.0",
+    "feedparser>=6.0",
+    "python-dateutil>=2.9",
+    "pyairtable>=2.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+abundroid = "abundroid.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
