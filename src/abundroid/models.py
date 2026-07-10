@@ -19,6 +19,46 @@ class Organization:
 
 
 @dataclass
+class Source:
+    '''One monitored endpoint belonging to an organization.'''
+
+    organization: str
+    name: str
+    url: str
+    format: str  # rss | jsonld | html | ical
+    default_kind: str = 'other'
+    active: bool = True
+    notes: str = ''
+
+
+@dataclass
+class Item:
+    '''One publication or event collected from a monitored source.'''
+
+    title: str
+    publisher: str
+    kind: str = 'other'
+    uid: str = ''
+    source_item_id: str = ''
+    canonical_url: str = ''
+    source_url: str = ''
+    published_at: datetime | None = None
+    author: str = ''
+    summary: str = ''
+    topics: list[str] = field(default_factory=list)
+    status: str = 'Needs Review'
+    reviewer_notes: str = ''
+    scheduled_start: datetime | None = None
+    scheduled_end: datetime | None = None
+    location: str = ''
+    source_hash: str = ''
+    first_seen: datetime | None = None
+    last_seen: datetime | None = None
+    changed: bool = False
+    possible_duplicate_of: str = ''
+
+
+@dataclass
 class Event:
     """One normalized event, before or after review."""
 

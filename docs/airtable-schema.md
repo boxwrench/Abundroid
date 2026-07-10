@@ -1,155 +1,241 @@
 # Airtable Base Schema
 
-Create a new Airtable base and set up four tables exactly as specified below. Non-technical admins can do this entirely by hand using the Airtable UI.
+This is the target Airtable layout for Abundroid's unified publication
+monitoring workflow. A technical deployer creates the fields, views,
+permissions, and Interface once. Daily operators then use the Interface
+without a terminal or knowledge of source formats.
 
-## Organizations Table
+The new **Sources** and **Items** tables do not replace the legacy **Events**
+table in place. Existing deployments keep **Events** and **Run Log** while the
+two ingestion paths coexist.
 
-**Primary field**: Name (single line text)
+## Organizations
 
-Monitors the sources Abundroid will fetch from.
+**Primary field:** `Name` (single line text)
 
-| Field | Type | Notes |
+Create one durable record per organization, regardless of how many blogs,
+newsrooms, feeds, or calendars it owns.
+
+| Field | Type | Owner and purpose |
 |---|---|---|
-| Name | Single line text (primary) | Organization name; required |
-| Website | URL | Homepage URL |
-| Events URL | URL | Feed or event page URL (iCal, RSS, or schema.org/JSON-LD page); required |
-| Source Type | Single select | Options: `ical`, `rss`, `jsonld`, `html` |
-| Category | Multiple select | Multi-select for filtering (e.g., "Housing", "Energy", "Transit") |
-| Priority | Single select | Options: `High`, `Medium`, `Low` |
-| Active | Checkbox | Default: checked. Unchecked rows are skipped by the bot. |
-| Stage | Single select | Options: `Approved`, `Watchlist`, `Suggested`. Default: `Approved`. The bot only monitors rows that are Active **and** Approved; Watchlist/Suggested are a human parking lot for maybe-organizations. |
-| Notes | Long text | Internal notes, e.g., "site updated 2024-01", API contact, etc. |
-| Last Checked | Date | *Bot writes*. Timestamp of last fetch attempt. |
-| Last Successful Pull | Date | *Bot writes*. Timestamp of last successful fetch. |
-| Health | Single select | *Bot writes*. Options: `Good`, `No events found`, `Page changed`, `Needs attention`, `Error` |
+| Name | Single line text (primary) | Human; required organization name |
+| Website | URL | Human; public homepage, not a feed URL |
+| Category | Multiple select | Human; ecosystem categories for filtering |
+| Priority | Single select | Human; `High`, `Medium`, or `Low` |
+| Active | Checkbox | Human; unchecked pauses organization-wide collection |
+| Stage | Single select | Human; `Approved`, `Watchlist`, `Suggested`, or `Archived` |
+| Notes | Long text | Human; internal context |
+| Sources | Link to Sources | Airtable reciprocal link; one organization can have many |
+| Events URL | URL | Legacy only; retained for `abundroid run` |
+| Source Type | Single select | Legacy only; `ical`, `rss`, `jsonld`, or `html` |
+| Last Checked | Date + time | Legacy bot bookkeeping |
+| Last Successful Pull | Date + time | Legacy bot bookkeeping |
+| Health | Single select | Reserved legacy field; current commands do not update it |
 
-**Bot permissions**: Writes Last Checked, Last Successful Pull, Health. Reads everything else.
+The unified collector processes Sources whose linked Organization is approved
+and active. An organization without an active Source produces no Items.
+Pausing the Organization skips all its Sources without changing their
+individual Active values.
 
----
+Archiving is the normal removal operation. Set `Stage = Archived`, clear
+`Active`, and retain the record and all history.
 
-## Topics Table
+## Sources
 
-**Primary field**: Topic (single line text)
+**Primary field:** `Name` (single line text)
 
-Categorization taxonomy for events; used for tagging and filtering.
+A Source is a specific endpoint Abundroid fetches. Retrieval format and
+publication kind are separate: an RSS feed may contain articles, updates, or
+announcements.
 
-| Field | Type | Notes |
+| Field | Type | Owner and purpose |
 |---|---|---|
-| Topic | Single line text (primary) | Topic name, e.g., "Zoning Reform", "Housing Supply"; required |
-| Keywords | Long text | Comma-separated keywords used for automated tagging. Matching is case-insensitive on whole words ("art" never matches "startup"). |
-| Aliases | Long text | Comma-separated alternate topic names (e.g., "YIMBY" → "Housing Advocacy"). Treated as extra keywords when tagging. |
-| Exclusions | Long text | Comma-separated terms that disqualify an event from this topic |
-| Priority | Single select | Options: `High`, `Medium`, `Low`; used to rank topics in the UI |
-| Active | Checkbox | Default: checked. Inactive topics are not offered for manual tagging. |
-| Notes | Long text | Context or examples |
+| Name | Single line text (primary) | Human; friendly label such as `Newsroom feed` |
+| Organization | Link to Organizations | Human; required, exactly one organization |
+| Organization Name | Lookup from Organization -> Name | Airtable; collector uses the linked organization's name |
+| URL | URL | Human/advanced admin; required endpoint |
+| Format | Single select | Advanced admin; `rss`, `jsonld`, `html`, or `ical` |
+| Default Kind | Single select | Human; `article`, `post`, `update`, `announcement`, `report`, `event`, or `other` |
+| Active | Checkbox | Human; unchecked skips only this Source |
+| Notes | Long text | Human; internal context or troubleshooting notes |
 
-**Bot permissions**: Read-only (no writes).
+The RSS-first Items collector currently supports `rss`. Other format options
+reserve the target model and continue through the legacy Events path where
+applicable. A future source discovery assistant will suggest URLs and formats;
+until then, an advanced administrator may need to supply them.
 
----
+For local CSV mode, the equivalent columns are:
 
-## Events Table
+```text
+organization,name,url,format,default_kind,active,notes
+```
 
-**Primary field**: Event UID (single line text)
+## Items
 
-The review queue and event archive. The bot creates rows with deterministic UIDs based on registration URL (or organizer + title + date hash) to prevent duplicates across runs.
+**Primary field:** `Item UID` (single line text)
 
-| Field | Type | Notes |
+Items is the unified editorial queue. Scheduled events are Items with
+`Kind = event` and optional scheduled fields; they are not the root product
+model.
+
+| Field | Type | Owner and purpose |
 |---|---|---|
-| Event UID | Single line text (primary) | *Bot writes*. Deterministic identifier; do not edit. Used to detect re-run duplicates. |
-| Title | Single line text | Event name; human or bot-provided |
-| Organizer | Single line text | Primary organizing entity |
-| Co-organizers | Long text | Comma-separated or free-form co-organizers |
-| Start | Date + time | Event start datetime; required for approval. Blank for RSS events (human fills in). |
-| End | Date + time | Event end datetime |
-| Timezone | Single line text | e.g., "America/Los_Angeles", "UTC" |
-| Location | Single line text | Physical venue or "Virtual" if online |
-| Virtual | Checkbox | Checked if fully online; unchecked if in-person or hybrid |
-| Registration URL | URL | Link to RSVP or ticket page |
-| Source URL | URL | URL of the page/feed the event was pulled from |
-| Short Description | Long text | 1–2 sentence summary |
-| Description | Long text | Full event description or abstract |
-| Speakers | Long text | Speaker names or list |
-| Topics | Multiple select | *Bot pre-fills at creation* from the Topics table keywords; humans correct before approval. |
-| Confidence | Number | *Bot writes for AI extraction (Phase 4)*. Confidence score 0–100 if extracted. |
-| Status | Single select | Options: `Needs Review`, `Approved`, `Rejected`, `Duplicate`, `Published`, `Archived`. Humans set this. |
-| Changed | Checkbox | *Bot writes*. Checked if a previously seen event (same UID) had details updated at the source. The bot does **not** overwrite the row with the new details (human edits always win) — open the Source URL to see what changed, then uncheck. |
-| Possibly Cancelled | Checkbox | *Bot writes*. Checked when a future event disappeared from a full-calendar source (iCal/JSON-LD); cleared automatically if it reappears. RSS sources never trigger this (feeds naturally drop old posts). |
-| Possible Duplicate Of | Single line text | *Bot writes at creation*. UID of a suspected same-day twin from a **different** organization; review both and mark one `Duplicate`. |
-| Source Hash | Single line text | *Bot writes*. Fingerprint of the source-provided details, used to detect changes. Do not edit. |
-| First Seen | Date | *Bot writes*. Date this UID first appeared. |
-| Last Seen | Date | *Bot writes*. Most recent date this UID was fetched. |
-| Reviewer Notes | Long text | Human notes during review; not sent to output |
+| Item UID | Single line text (primary) | Bot; stable identifier, never edit |
+| Source Item ID | Single line text | Bot; source-native ID such as RSS/Atom GUID |
+| Canonical URL | URL | Bot at creation; preferred public link |
+| Source URL | URL | Bot at creation; endpoint or entry link used for verification |
+| Title | Single line text | Bot suggests at creation; human may edit |
+| Publisher | Single line text | Bot snapshots organization name so history survives unlinking |
+| Kind | Single select | Bot defaults; human may correct: `article`, `post`, `update`, `announcement`, `report`, `event`, or `other` |
+| Published At | Date + time | Bot at creation; human may correct |
+| Author | Single line text | Bot at creation; human may correct |
+| Summary | Long text | Bot at creation; human may edit |
+| Topics | Multiple select | Bot suggests at creation; human owns review |
+| Status | Single select | Human; `Needs Review`, `Approved`, `Rejected`, `Duplicate`, `Published`, or `Archived` |
+| Reviewer Notes | Long text | Human-only internal notes |
+| Scheduled Start | Date + time | Optional for `event` Items |
+| Scheduled End | Date + time | Optional for `event` Items |
+| Location | Single line text | Optional for `event` Items |
+| Source Hash | Single line text | Bot; fingerprint of source-provided facts, never edit |
+| First Seen | Date | Bot; first ingestion date |
+| Last Seen | Date | Bot; most recent ingestion date |
+| Changed | Checkbox | Bot; source facts changed after initial ingestion |
+| Possible Duplicate Of | Single line text | Bot; suspected Item UID for human review |
 
-**Bot permissions**: Writes Event UID, First Seen, Last Seen, Changed, Possibly Cancelled, Possible Duplicate Of, Source Hash, Confidence (Phase 4), and pre-fills Topics at creation. After creation it only ever touches its own bookkeeping fields — it never updates event details on an existing row, so human edits always win. Humans write Status, Reviewer Notes, correct Topics, and fill blanks (e.g., Start date for RSS events).
+At creation, the bot fills the source-derived fields and sets
+`Status = Needs Review`. On later runs it updates bookkeeping fields but does
+not silently replace human-edited title, kind, author, summary, topics, status,
+or notes. `Publisher` and source facts remain on the Item even if an
+administrator later unlinks or permanently deletes configuration.
 
----
+Identity priority is source-native ID, then normalized canonical URL, then a
+deterministic fallback. Possible duplicates are flagged, never auto-deleted.
 
-## Run Log Table
+## Topics
 
-**Primary field**: Run ID (autonumber or date+time)
+**Primary field:** `Topic` (single line text)
 
-Execution history; one row per `abundroid run`.
-
-| Field | Type | Notes |
+| Field | Type | Owner and purpose |
 |---|---|---|
-| Run ID | Autonumber (or date+time primary) | Auto-created; uniquely identifies this run |
-| Timestamp | Date + time | When the run started |
-| Organization | Single line text | Name of the organization just processed (if logging per-org) or "Batch" for full runs |
-| Events Found | Number | Count of events fetched in this run |
-| Events New | Number | Count of new UIDs (not seen before) |
-| Errors | Long text | Error messages or issues encountered (empty if successful) |
+| Topic | Single line text (primary) | Human; required topic name |
+| Keywords | Long text | Human; comma-separated case-insensitive whole-word matches |
+| Aliases | Long text | Human; comma-separated alternate terms |
+| Exclusions | Long text | Human; comma-separated disqualifying terms |
+| Priority | Single select | Human; `High`, `Medium`, or `Low` |
+| Active | Checkbox | Human; inactive topics are not suggested |
+| Notes | Long text | Human; examples and guidance |
 
-**Bot permissions**: Writes all fields.
+The bot reads Topics and suggests matches. Reviewers remain responsible for
+the final Topics on an Item.
 
----
+## Source Runs (Phase 4)
+
+**Primary field:** `Run ID` (single line text)
+
+Create this table now if desired, but the current Items collector does not
+write it yet. Phase 4 will add one record per Source attempt.
+
+| Field | Type | Owner and purpose |
+|---|---|---|
+| Run ID | Single line text (primary) | Bot; unique attempt identifier |
+| Source | Link to Sources | Bot; Source attempted |
+| Started At | Date + time | Bot |
+| Finished At | Date + time | Bot |
+| Result | Single select | Bot; `Working`, `No recent items`, `Needs attention`, or `Paused` |
+| Items Found | Number | Bot; valid candidates parsed |
+| Items New | Number | Bot; records newly created |
+| Items Seen | Number | Bot; existing records encountered |
+| HTTP Status | Number | Bot; response status when applicable |
+| Error | Long text | Bot; actionable failure detail, blank on success |
+
+Health is per Source, not per Organization, because one broken calendar must
+not make a working newsroom appear broken. Until Phase 4 is wired, technical
+operators use command output for fetch diagnostics.
 
 ## Recommended Views
 
-### Review Queue (Events)
-- **Filter**: Status = "Needs Review"
-- **Sort**: Start date (ascending)
-- Shows human reviewers the next events to process.
+### Organizations
 
-### Source Health (Organizations)
-- **Group by**: Health
-- Shows which organizations have issues at a glance.
+- **Active Organizations:** `Stage = Approved` and `Active` checked.
+- **Candidates:** `Stage = Watchlist` or `Stage = Suggested`.
+- **Archived Organizations:** `Stage = Archived`; hidden from normal users.
+- **Permanent Delete:** admin-only view; never expose it in the normal
+  operator Interface.
 
-### Calendar (Events)
-- **View type**: Calendar
-- **Date field**: Start
-- **Filter**: Status = "Approved" OR Status = "Published"
-- Shows approved/published events on a timeline.
+### Sources
 
-### Needs Re-review (Events)
-- **Filter**: Changed is checked OR Possibly Cancelled is checked OR Possible Duplicate Of is not empty
-- Events the bot flagged after their first review: details changed at the source, the event vanished from a calendar, or a same-day twin appeared from another organization.
+- **Active Sources:** `Active` checked, grouped by Organization.
+- **Sources Needing Setup:** URL empty or Format empty.
+- **Paused Sources:** `Active` unchecked.
+- **Source Health:** Phase 4 view grouped by the latest Source Run Result.
 
-### Suggested Sources (Organizations)
-- **Filter**: Stage = "Suggested" OR Stage = "Watchlist"
-- Parking lot for organizations under consideration; promote to Approved to start monitoring.
+### Items
 
----
+- **Review Queue:** `Status = Needs Review`, newest `Published At` first.
+- **Needs Re-review:** `Changed` checked or `Possible Duplicate Of` not
+  empty.
+- **Articles:** `Kind = article`.
+- **Updates:** `Kind = update` or `Kind = post`.
+- **Announcements:** `Kind = announcement`.
+- **Reports:** `Kind = report`.
+- **Events:** `Kind = event`, optionally displayed as a calendar using
+  `Scheduled Start`.
+- **Approved Items:** `Status = Approved` or `Status = Published`.
 
-## Quality Metrics (optional but recommended)
+## Airtable Interface for Daily Operators
 
-Add these once real data flows — they take minutes and can't be reconstructed later. They also tell you when automated helpers have earned more trust.
+Create an Interface named **Abundroid Admin** with these pages:
 
-- On **Organizations**: rollup/count fields over linked Events — events approved, events rejected, % approved. A source whose events are mostly rejected is a relevance problem, not a technical one.
-- On **Events**: a "Edited Before Approval" checkbox reviewers tick when they had to correct bot-extracted details. The rate of this per source measures extraction quality.
+1. **Organizations:** searchable active list, Add Organization form, record
+   detail, related Sources, and Edit, Pause, Archive, and Restore actions.
+2. **Review:** Review Queue with the source links, editable editorial fields,
+   and status controls; hide IDs and hashes.
+3. **Source Health:** related Source list and, after Phase 4, latest Result and
+   Source Runs.
+4. **Candidates:** Watchlist and Suggested organizations awaiting a decision.
 
-(To use rollups, add a linked-record field from Events to Organizations via the Organizer; otherwise approximate with grouped views.)
+Configure Pause to clear Organization Active. Configure Archive to clear
+Organization Active and set Stage to `Archived`. Restore sets Stage to
+`Approved` and turns Organization Active on; Sources that were individually
+paused remain paused.
 
----
+Restrict raw-table deletion and the **Permanent Delete** view to base
+administrators. Deleting an Organization must not cascade to Items. Archive by
+default.
+
+## Legacy Events Compatibility
+
+Existing deployments must keep the **Events** table, its current fields, and
+the optional **Run Log** table. `abundroid run` uses these fields:
+
+- Identity/bookkeeping: **Event UID**, **Source Hash**, **First Seen**,
+  **Last Seen**, **Changed**, **Possibly Cancelled**, **Possible Duplicate Of**.
+- Editorial data: **Title**, **Organizer**, **Co-organizers**, **Start**,
+  **End**, **Timezone**, **Location**, **Virtual**, **Registration URL**,
+  **Source URL**, **Short Description**, **Description**, **Speakers**,
+  **Topics**, **Status**, and **Reviewer Notes**.
+- Optional extraction field: **Confidence**.
+
+Do not rename **Events** to **Items**, point `AIRTABLE_EVENTS_TABLE` at
+**Items**, or manually merge the records. `abundroid run` and
+`abundroid collect` are separate compatibility paths until the migration
+tool exists.
 
 ## Setup Checklist
 
-1. Create a new Airtable base (or re-use an existing one).
-2. Create the four tables: **Organizations**, **Topics**, **Events**, **Run Log**.
-3. Add fields to each table exactly as specified above (order does not matter, but field names and types must match).
-4. Create the three recommended views.
-5. Create a [personal access token](https://airtable.com/create/tokens) with `data.records:read` and `data.records:write` scopes, restricted to this base.
-6. Note your base ID (visible in the URL as `appXXXXX...`).
-7. Copy `.env.example` to `.env` and fill in `AIRTABLE_API_KEY` and `AIRTABLE_BASE_ID`.
-8. Run `abundroid run` to verify the connection.
-
-If table or field names differ, set `AIRTABLE_ORGS_TABLE` and `AIRTABLE_EVENTS_TABLE` in `.env` to override defaults.
+1. Create **Organizations**, **Sources**, **Items**, and **Topics** with the
+   exact field names and types above.
+2. Optionally create **Source Runs** now for Phase 4 readiness.
+3. Retain **Events**, **Run Log**, **Events URL**, and **Source Type** in
+   existing calendar deployments.
+4. Create the saved views and the **Abundroid Admin** Interface.
+5. Configure Pause/Archive/Restore actions and restrict permanent deletion to
+   base administrators.
+6. Create a personal access token with `data.records:read` and
+   `data.records:write`, restricted to this base.
+7. Set `AIRTABLE_API_KEY` and `AIRTABLE_BASE_ID`; use table-name overrides
+   only when the Airtable names differ.
+8. Run `abundroid collect` twice and verify that the second run creates no
+   duplicate Items.
+9. In an existing deployment, run `abundroid run` and verify the Events
+   compatibility path separately.

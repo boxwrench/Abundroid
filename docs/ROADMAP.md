@@ -1,116 +1,119 @@
 # Abundroid Roadmap
 
-Canonical roadmap, reconciling the two original project briefs (now archived in
-`archive/`: *Abundance Ecosystem Events Bot.pdf* and *Abundroid Roadmap
-Brief.pdf*). Where this document and the PDFs disagree, this document wins.
+Abundroid monitors what organizations publish: articles, posts, updates,
+announcements, reports, and other notable output. Scheduled gatherings may be
+collected as one optional item type, but Abundroid is not primarily an event
+calendar.
 
-Guiding principle: **Build the sturdy event database first. Add intelligence in
-layers.** The database is the source of truth. Agents are helpers. Humans
-approve important changes.
+The product is operated through Airtable by nontechnical staff. A normal admin
+must be able to add, edit, pause, archive, or restore an organization without
+using a terminal or knowing what RSS, JSON-LD, or an adapter is.
 
 > Reliable first. Useful second. Agentic third. Public later.
 
-## Phase 1 — MVP Event Pipeline (done)
+## Product Principles
 
-- Organization (source) registry and Topic registry, editable in Airtable by
-  non-technical admins; local CSV mode for credential-free development.
-- Scheduled Python bot: fetch iCal + RSS sources, normalize events, compute
-  deterministic `event_uid`, upsert into the review queue (new uid → Needs
-  Review; seen uid → update Last Seen).
-- Human review workflow: approve / reject / edit / mark duplicate in Airtable.
-- Basic queries via Airtable views (this week, by topic, online-only, by org).
-  Natural-language querying is deliberately NOT in the MVP — views cover it.
-- Suggested/Watchlist stage on Organizations: a free landing spot for
-  maybe-organizations, so future source discovery has somewhere to write.
-- Quality-metric fields from day one (per-source approval rate, edited-before-
-  approval rate) — cheap now, impossible to reconstruct later, and the evidence
-  for when automated helpers deserve more autonomy.
-- Airtable-native UX from the start: add-organization form view, review queue
-  view, source health view. No custom frontend.
+- **One item stream.** Articles, updates, announcements, reports, posts, and
+  scheduled events share identity, topics, review, and publishing machinery.
+- **Organizations are not sources.** One organization can have a blog,
+  newsroom, newsletter, podcast feed, and calendar without duplicating its
+  organization record.
+- **Nontechnical daily operation.** Airtable forms and interfaces are the
+  control panel. Initial deployment may require technical setup; ongoing use
+  must not.
+- **Human editorial control.** The bot suggests and records. Humans approve,
+  reject, edit, archive, and publish.
+- **Source facts and human edits stay separate.** A source update never
+  silently overwrites reviewed copy. Reviewers can see what changed.
+- **Archive by default.** Stopping monitoring must preserve historical items.
+  Permanent deletion is an explicit administrator action.
 
-## Phase 2 — Broader Sources + Focused Helpers (done, one deferral)
+## Historical Phases 1-2 - Calendar-Oriented Prototype (complete)
 
-- ✅ schema.org/JSON-LD adapter (covers Eventbrite, Luma, most WordPress event
-  plugins), including ItemList listing pages.
-- ✅ Classifier: keyword/alias/exclusion topic tagging driven by the Topics
-  table (word-boundary, case-insensitive). **Deferred**: the AI tiebreaker for
-  ambiguous events moves to Phase 4 — it needs an Anthropic key plus real
-  review data showing which events keyword rules actually get wrong.
-- ✅ Deduper: fuzzy cross-organization duplicate flagging, same-day only,
-  both rows point at each other (never auto-delete).
-- ✅ Change detection: previously seen events whose details changed at the
-  source get flagged Changed for re-review (rows are never overwritten);
-  future events that disappear from full-calendar sources (iCal/JSON-LD only,
-  never RSS) get flagged Possibly Cancelled, self-clearing on reappearance.
+The existing Python pipeline fetches RSS, iCal, and schema.org Event JSON-LD;
+tags topics; detects a narrow class of duplicates; and writes review records to
+CSV or Airtable. Its 187 tests protect this behavior while the data model is
+migrated.
 
-## Phase 3 — Articles, Posts, Announcements (next up)
+This prototype is useful infrastructure, but `Event`, `Events URL`, required
+start dates, same-day deduplication, and cancellation handling reflect the old
+calendar interpretation. They are compatibility features, not the target
+product model.
 
-The brief's "events" always meant occurrences broadly — things the ecosystem
-produces, not only things on a calendar (clarified 2026-07-09). This phase
-adds written output — blog posts, articles, announcements — as a second lane
-through the same pipeline.
+## Phase 3 - Unified Published Items (in progress)
 
-- `Article` model (title, author, published date, URL, summary) alongside
-  `Event`, with the same deterministic uid dedupe.
-- New **Articles** table in Airtable with its own review queue. Article
-  review asks different questions than event review ("is this worth
-  amplifying?" vs "is this date right?"), so the queues stay separate.
-- **Content Type** on organization sources (`events` / `articles`); an org
-  with both a calendar and a blog gets one row per feed.
-- Adapter reuse, not new adapters: RSS becomes a first-class *article* source
-  (it already fetches posts today — they're just forced into event shape);
-  the JSON-LD adapter gains `Article`/`BlogPosting`/`NewsArticle` types
-  alongside `Event`.
-- The topic classifier tags articles from the same Topics table.
-- Every standing promise carries over: nothing publishes without approval,
-  nothing invented, human edits win, never delete.
-- Open decision — needed by the digest phase, not now: one combined digest
-  (events + notable writing) or separate outputs per audience.
+**Implemented:** the RSS/Atom Item model, Source model, stable identity,
+topic tagging, cross-run duplicate flags, CSV/Airtable batch stores, and the
+`abundroid collect` command. **Still required for phase exit:** live Airtable
+validation, migration tooling, and operator-interface setup.
 
-## Phase 4 — AI Extraction, Health, Automation
+- Add an `Item` model with `kind`, publisher, canonical URL, source item ID,
+  publication date, author, summary, topics, and optional scheduled-event
+  fields.
+- Add a `Source` model separate from `Organization`. Sources record retrieval
+  format (`rss`, `jsonld`, `html`, `ical`) independently from item kind.
+- Make RSS the first complete content path. Preserve RSS/Atom GUIDs, canonical
+  URLs, authors, and publication timestamps rather than forcing posts into an
+  event shape.
+- Add an **Items** table and review queue. Use filtered Airtable views for
+  articles, updates, announcements, and events rather than separate tables and
+  pipelines.
+- Replace URL-only identity with source ID -> canonical URL -> deterministic
+  fallback priority.
+- Compare new candidates with persisted recent items. Calendar date must not be
+  required for content duplicate detection.
+- Keep the legacy Events path working until existing deployments can migrate.
 
-- AI-assisted extraction for plain-HTML event pages (grounded fields only,
-  content-hash caching). Browser automation stays out of scope.
-- AI tiebreaker for ambiguous topic tagging (deferred from Phase 2; prompt
-  built from the live Topics table).
-- Source Health: per-source status including the "historically productive
-  source yields 0 events for 3 runs → Needs attention" rule; Run Log table.
-- Scheduled runs on GitHub Actions cron; secrets via repository secrets.
-- Query Agent: simple natural-language questions over approved events.
+**Exit criteria:** a staff member can approve an organization and source in
+Airtable, run ingestion, review new RSS items, correct topics or summaries, and
+rerun without duplicate records.
 
-## Phase 5 — Digest, Scale, Handoff
+## Phase 4 - Administration, Health, and Automation
 
-- Weekly digest drafted from approved events — and approved articles, combined
-  or separate per the open decision in Phase 3 (human reviews and sends). This is
-  a committed deliverable, not a maybe — the digest is the system's visible
-  output and the reason anyone adopts it.
-- Scale registry to 30–50 organizations; archiving policy for past events.
-- **Handoff milestone**: the Abundance Network runs Abundroid on its own
-  Airtable base and credentials — documented admin roles (who reviews the
-  queue, who manages sources), credential rotation, and a named owner. Done
-  means they operate it without the original author in the loop.
+- Airtable Organizations interface with Add, Edit, Pause, Archive, Restore,
+  and administrator-only Permanent Delete actions.
+- Source discovery assistant: a user enters an organization website; the bot
+  suggests likely feeds and pages for human approval.
+- Plain-language source health (`Working`, `No recent items`, `Needs attention`,
+  `Paused`) backed by per-source run history.
+- Run Log and Source Run records with fetch time, result counts, response
+  metadata, and actionable errors.
+- Scheduled GitHub Actions runs with secrets stored as repository secrets.
+- Conditional HTTP requests, caching, connection reuse, and bounded retries.
 
-## Later (explicitly not for the initial build)
+**Exit criteria:** after one-time deployment, routine operation requires no
+terminal use and a failed source is visible from the Airtable interface.
 
-Ideas from the roadmap brief, in rough order of likely value. Each requires the
-guardrails noted in the brief (suggest, don't act; publish approved data only;
-opt-in only).
+## Phase 5 - Enrichment and Useful Output
 
-- Source discovery agent (scout suggests into the Watchlist stage that exists
-  from Phase 1; humans approve).
-- Public outputs, feeds first: public calendar page and published iCal/RSS
-  feeds of approved events. A REST API only if a partner concretely asks —
-  feeds deliver most integration value at a fraction of the surface area.
-- Reviewer-feedback loop that *suggests* topic rule changes (never silent).
-- Admin agent for registry hygiene suggestions; source reliability scoring
-  (built on the Phase 1 quality metrics).
-- Ecosystem intelligence: speaker tracking, relationship graph, co-host
-  analysis, topic trend dashboard, city/regional mapping, periodic reports.
-  Gated on extraction quality, not calendar time — speaker/co-host fields are
-  the weakest-extracted data and need months of good Phase 4 output first.
-- Personalized alerts and recommendations (opt-in, explainable) — deliberately
-  last: they need accounts and preference storage, effectively a second
-  product. The digest plus public feeds cover most of this value.
-- Multi-ecosystem support: zero code now; the env-var/base-per-deployment
-  design already keeps this door open (second ecosystem = second base + second
-  cron entry).
+- JSON-LD support for `Article`, `BlogPosting`, `NewsArticle`, and related
+  types.
+- Grounded extraction for plain HTML pages, with cached source snapshots and
+  no invented fields.
+- Optional AI assistance for ambiguous topic classification, summaries, and
+  change explanations. All AI output remains reviewable.
+- A minimal digest generated from approved items, with a human reviewing and
+  sending it.
+- Query views and, only if needed, natural-language questions over approved
+  items.
+
+**Exit criteria:** approved items produce a useful recurring digest and source
+changes can be reviewed without losing editorial edits.
+
+## Phase 6 - Scale and Handoff
+
+- Scale to 30-50 organizations and multiple sources per organization.
+- Measure approval rate, edit rate, source productivity, and reviewer effort.
+- Define retention, archival, backup, and credential-rotation policies.
+- Document admin ownership and hand the deployment to its operating team.
+
+## Later
+
+- Human-approved source and organization discovery suggestions.
+- Public feeds or pages when a concrete audience needs them.
+- Organization, author, topic, and co-publication relationship analysis.
+- Trend reports, opt-in alerts, and recommendations.
+- Multi-ecosystem deployments using separate bases and schedules.
+
+The detailed contracts and migration sequence are in
+[`docs/IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).

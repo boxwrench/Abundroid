@@ -9,6 +9,15 @@ from abundroid.stores.csv_store import load_organizations as load_orgs_csv, CsvE
 from abundroid.stores.airtable_store import load_organizations as load_orgs_airtable, AirtableEventStore
 from abundroid.classifier import topics_from_airtable, load_topics_csv
 from abundroid.pipeline import run_pipeline
+from abundroid.item_pipeline import run_item_pipeline
+from abundroid.stores.item_csv_store import (
+    CsvItemStore,
+    load_sources as load_sources_csv,
+)
+from abundroid.stores.item_airtable_store import (
+    AirtableItemStore,
+    load_sources as load_sources_airtable,
+)
 
 
 def load_env(path=".env"):
@@ -55,6 +64,78 @@ class DryRunStore:
         return {"new": len(events), "seen": 0}
 
 
+class DryRunItemStore:
+    '''Print collected Items instead of persisting them.'''
+
+    def recent_items(self, since=None):
+        return []
+
+    def upsert(self, items):
+        for item in items:
+            published = item.published_at.isoformat() if item.published_at else 'No date'
+            print(
+                f'  [{item.kind}] {item.title} ({published}) - '
+                f'{item.canonical_url} [{item.uid}]'
+            )
+        return {'new': len(items), 'seen': 0}
+
+
+def _load_airtable_topics(api, base_id):
+    try:
+        topics_table = api.table(
+            base_id,
+            os.environ.get('AIRTABLE_TOPICS_TABLE', 'Topics'),
+        )
+        return topics_from_airtable(topics_table)
+    except Exception as exc:
+        print(f'Warning: could not load Topics table ({exc}); tagging skipped')
+        return []
+
+
+def run_collect(args):
+    '''Run the unified published-items pipeline.'''
+    airtable_key = os.environ.get('AIRTABLE_API_KEY', '').strip()
+    airtable_base = os.environ.get('AIRTABLE_BASE_ID', '').strip()
+
+    if airtable_key and airtable_base:
+        import pyairtable
+
+        api = pyairtable.Api(airtable_key)
+        orgs_table = api.table(
+            airtable_base,
+            os.environ.get('AIRTABLE_ORGS_TABLE', 'Organizations'),
+        )
+        sources_table = api.table(
+            airtable_base,
+            os.environ.get('AIRTABLE_SOURCES_TABLE', 'Sources'),
+        )
+        items_table = api.table(
+            airtable_base,
+            os.environ.get('AIRTABLE_ITEMS_TABLE', 'Items'),
+        )
+        sources = load_sources_airtable(sources_table, orgs_table)
+        topics = _load_airtable_topics(api, airtable_base)
+        store = DryRunItemStore() if args.dry_run else AirtableItemStore(items_table)
+    else:
+        sources = load_sources_csv(args.sources)
+        topics = load_topics_csv(args.topics) if os.path.exists(args.topics) else []
+        store = DryRunItemStore() if args.dry_run else CsvItemStore(args.out)
+
+    result = run_item_pipeline(sources, store, topics=topics)
+    for summary in result['sources']:
+        name = summary['source']
+        if summary['ok']:
+            print('{}: ok, {} found'.format(name, summary['items_found']))
+        else:
+            print('{}: error ({})'.format(name, summary['error']))
+    print(
+        'Totals: {} found, {} new, {} seen'.format(
+            result['items_found'], result['new'], result['seen']
+        )
+    )
+    return 0
+
+
 def main(argv=None):
     """
     Main CLI entry point.
@@ -90,7 +171,34 @@ def main(argv=None):
         help="Fetch and parse but don't write, print events instead"
     )
 
+    collect_parser = subparsers.add_parser(
+        'collect', help='Collect articles, posts, updates, and other published items'
+    )
+    collect_parser.add_argument(
+        '--sources',
+        default='data/sources.csv',
+        help='Path to sources CSV (default: data/sources.csv)',
+    )
+    collect_parser.add_argument(
+        '--out',
+        default='output/items.csv',
+        help='Path to output Items CSV (default: output/items.csv)',
+    )
+    collect_parser.add_argument(
+        '--topics',
+        default='data/topics.csv',
+        help='Path to topics CSV for tagging',
+    )
+    collect_parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Fetch and parse Items without writing them',
+    )
+
     args = parser.parse_args(argv)
+
+    if args.command == 'collect':
+        return run_collect(args)
 
     if args.command != "run":
         parser.print_help()

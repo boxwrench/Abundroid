@@ -75,6 +75,28 @@ def tag_events(events: list[Event], topics: list[Topic]) -> None:
                     event.topics.append(topic.name)
 
 
+def tag_items(items, topics: list[Topic]) -> None:
+    '''Tag published items using their title and summary.'''
+    for item in items:
+        text = (item.title or '') + ' ' + (item.summary or '')
+
+        for topic in topics:
+            if not topic.active or not topic.keywords:
+                continue
+
+            if any(
+                re.search(r'(?<!\w)' + re.escape(term) + r'(?!\w)', text, re.IGNORECASE)
+                for term in topic.exclusions
+            ):
+                continue
+
+            if any(
+                re.search(r'(?<!\w)' + re.escape(term) + r'(?!\w)', text, re.IGNORECASE)
+                for term in topic.keywords
+            ) and topic.name not in item.topics:
+                item.topics.append(topic.name)
+
+
 def topics_from_airtable(table) -> list[Topic]:
     """
     Load topics from an Airtable-compatible table.

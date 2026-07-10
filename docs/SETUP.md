@@ -1,211 +1,250 @@
-# Setting Up Abundroid — Step by Step
+# Setting Up and Operating Abundroid
 
-This guide walks you through making Abundroid work with **your** accounts and
-**your** list of organizations. No programming knowledge needed, but you will
-copy and paste a few commands into a terminal.
+This guide has two audiences:
 
-Total time: about 30–45 minutes, most of it setting up the Airtable base.
+- **Technical deployer:** completes installation, Airtable schema, credentials,
+  and manual collection until Phase 4 scheduling is implemented.
+- **Daily operator:** adds, pauses, archives, and restores organizations;
+  and reviews Items entirely in Airtable. Live source health arrives in
+  Phase 4.
 
----
+Routine operation must not require a terminal or knowledge of RSS, JSON-LD,
+or adapters.
 
-## What you'll need
+## The short version for Abundance staff
 
-| Thing | Why | Cost |
-|---|---|---|
-| A computer (Windows or Mac) | To install and run the bot | — |
-| Python 3.11 or newer | The language the bot is written in | Free — [python.org/downloads](https://www.python.org/downloads/) |
-| An Airtable account | Where your team reviews events | Free tier works to start (note: free bases cap total records, so plan to archive old events or upgrade later) |
+The tracker watches approved organizations and collects the things they publish.
+You work in the **Abundroid Admin** Airtable Interface:
 
-> **Just want a quick look first?** Do Steps 1–2 only. Abundroid runs without
-> any accounts at all, using simple files on your computer.
+1. Add or update an organization.
+2. Make sure it has at least one active source, such as a newsroom or blog. If
+   you do not know the source URL or format, leave that step for the technical
+   deployer.
+3. Open **Review Queue** when new items arrive.
+4. Check the link, adjust the title, summary, or topics, then choose a status.
 
----
+Use **Pause** when monitoring should stop temporarily. Use **Archive** when the
+organization should leave the active list but its history should remain. Use
+**Restore** to bring it back. Prefer archiving to deleting; permanent deletion
+is reserved for base administrators.
 
-## Step 1 — Install Abundroid
+The Airtable words translate simply:
 
-Open a terminal (Windows: press Start, type "PowerShell", press Enter.
-Mac: open the Terminal app), then paste these lines one at a time:
+| Airtable word | In plain language |
+|---|---|
+| Organization | The publisher being tracked |
+| Source | A specific blog, newsroom, or updates page to check |
+| Item | One article, post, update, announcement, or report |
+| Active | Include this organization or source in the next check |
+| Stage | Whether the organization is approved, a candidate, or archived |
+| Review Queue | New publications waiting for a person to check them |
 
-```bash
+Only edit fields intended for people. Leave IDs, hashes, and first/last-seen
+dates alone; those are how the tracker recognizes the same publication later.
+## One-Time Technical Deployment
+
+### 1. Install Abundroid
+
+Install Python 3.11 or newer, then run:
+
+```powershell
 git clone https://github.com/boxwrench/Abundroid.git
 cd Abundroid
 python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -e '.[dev]'
+python -m pytest
 ```
 
-Then activate the environment:
+On macOS or Linux, activate with `source .venv/bin/activate` instead.
 
-- **Windows:** `.venv\Scripts\activate`
-- **Mac:** `source .venv/bin/activate`
+### 2. Test the unified Items path locally
 
-And install:
+Without Airtable credentials, the new collection path reads
+`data/sources.csv` and writes `output/items.csv`:
 
-```bash
-pip install -e .
+First replace the disabled example URL with a real RSS or Atom feed and set
+`active` to `true`. The checked-in example is inactive so a fresh checkout
+does not make an unexpected network request.
+
+```powershell
+abundroid collect
 ```
 
-If you see no red error text, it worked.
+Run it a second time to verify that an unchanged feed creates no new Items.
+The legacy calendar path remains available as `abundroid run`; it reads
+`data/organizations.csv` and writes `output/events.csv`.
 
-## Step 2 — Test drive with zero accounts
+### 3. Create the Airtable base
 
-The repo ships with a file called `data/organizations.csv` — a starter list
-with one example row. Run the bot against it:
+Create the tables and fields in [airtable-schema.md](airtable-schema.md):
 
-```bash
-abundroid run
+1. **Organizations**
+2. **Sources**
+3. **Items**
+4. **Topics**
+
+Create **Source Runs** now if you want the base ready for Phase 4 health
+history. The collector does not write that table yet.
+
+Keep **Events** in an existing deployment because it supports the legacy
+`abundroid run` path. Retain **Run Log** if the base already uses it for
+history, but the current commands do not write it.
+
+Create the saved views and Airtable Interface described in the schema guide.
+This is deployment work, not a task for daily operators.
+
+### 4. Create an Airtable token
+
+1. Open [airtable.com/create/tokens](https://airtable.com/create/tokens).
+2. Create a token named `Abundroid`.
+3. Add `data.records:read` and `data.records:write` scopes.
+4. Restrict access to the Abundroid base.
+5. Store the token in the deployment secret store. Do not paste it into
+   Airtable or commit it to Git.
+
+### 5. Configure environment variables
+
+Copy `.env.example` to `.env` for a local deployment and set:
+
+```dotenv
+AIRTABLE_API_KEY=pat_your_token
+AIRTABLE_BASE_ID=app_your_base_id
 ```
 
-You'll see one line per organization saying how many events were found. Found
-events land in `output/events.csv`, which you can open in Excel. Every event
-arrives marked **Needs Review** — nothing is ever auto-approved.
+The base ID is the value beginning with `app` in the Airtable base URL. The
+default table names can be overridden with the variables listed in
+`.env.example`.
 
-Run the same command again: notice it reports `0 new`. The bot remembers what
-it has already seen, so re-running never creates duplicates. This is the core
-promise of the whole system.
+For GitHub Actions or another scheduler, store the token and base ID as secret
+environment variables rather than committing a `.env` file.
 
-There's also a starter `data/topics.csv` with a few example topics (Housing,
-Energy, Transit). Events whose title or description mention those keywords
-get the topic filled in automatically — edit the file to try your own. In
-Airtable mode the **Topics** table plays this role instead.
+### 6. Verify both paths
 
----
+Run the new collection path:
 
-## Step 3 — Create your Airtable base
-
-This is where your team will actually work day to day.
-
-1. Log in to Airtable and create a new base (name it "Abundroid" or anything
-   you like).
-2. Create four tables with the exact fields listed in
-   **[docs/airtable-schema.md](airtable-schema.md)**: `Organizations`,
-   `Topics`, `Events`, and `Run Log`. Field **names and types must match
-   exactly** — the bot finds fields by name.
-3. Create the recommended views from the same document (Review Queue, Source
-   Health, Calendar, Suggested Sources). Views are just saved filters — they
-   take a minute each and they're how reviewers will live in this base.
-
-## Step 4 — Create an access token
-
-The bot needs permission to read and write your base. Airtable does this with
-a "personal access token" — think of it as a password that only works for this
-one base.
-
-1. Go to [airtable.com/create/tokens](https://airtable.com/create/tokens).
-2. Click **Create new token**. Name it "Abundroid".
-3. Under **Scopes**, add `data.records:read` and `data.records:write`.
-4. Under **Access**, add **only** your new Abundroid base.
-5. Click **Create token** and copy it somewhere safe — Airtable shows it once.
-
-## Step 5 — Connect Abundroid to your base
-
-1. In the Abundroid folder, copy the file `.env.example` and name the copy
-   `.env` (yes, just a dot and "env").
-2. Open `.env` in any text editor and fill in two lines:
-
-   ```
-   AIRTABLE_API_KEY=paste_your_token_here
-   AIRTABLE_BASE_ID=paste_your_base_id_here
-   ```
-
-   Your **base ID** is in the web address when your base is open: the part
-   that starts with `app`, e.g. `airtable.com/appABC123xyz/...` → `appABC123xyz`.
-
-The `.env` file stays on your computer. It is deliberately ignored by git, so
-your token can never end up on GitHub by accident.
-
-## Step 6 — Add your organizations
-
-In the **Organizations** table, add a row per organization you want to watch:
-
-- **Name** — the org's name.
-- **Events URL** — the address the bot should check (see below).
-- **Source Type** — what kind of address it is (see below).
-- **Active** — check it.
-- **Stage** — set to `Approved` (that's what tells the bot "yes, monitor this
-  one"; use `Watchlist` or `Suggested` to park maybes).
-
-### Finding the Events URL and Source Type
-
-This is the only genuinely fiddly part. The bot reads three kinds of sources
-today, in order of preference:
-
-- **`ical`** — a calendar feed. Look for "Subscribe to calendar", "Add to
-  calendar", or a link ending in `.ics` on the org's events page. These are
-  the best sources: complete dates, times, and locations.
-- **`jsonld`** — an ordinary events webpage with event data embedded in it.
-  You can't see the data, but Eventbrite pages, Luma (lu.ma) pages, and most
-  WordPress event calendars have it. Just paste the address of the org's
-  events page and try it — if the run reports `0 found` on a page that
-  clearly lists events, the site doesn't embed data and you should park the
-  row as `html` instead.
-- **`rss`** — a news feed. Try adding `/feed` to the end of the org's site
-  address, or look for an RSS icon. Note: RSS tells us an event was
-  *announced* but usually not *when it happens*, so RSS events arrive without
-  a date and a reviewer fills it in.
-
-If none of those work, set Source Type to `html` and leave the row Active.
-The bot will report it as `unknown source type` for now; AI-assisted reading
-of plain webpages is Phase 4 on the [roadmap](ROADMAP.md) and those rows will
-start working without any changes on your side.
-
-## Step 7 — Run it and review
-
-```bash
-abundroid run
+```powershell
+abundroid collect
 ```
 
-With your `.env` in place, the bot automatically uses Airtable instead of the
-local files. Then open your base:
+Confirm that a new record appears in **Items**, then run the command again and
+confirm it does not create a duplicate. Existing calendar deployments should
+also run `abundroid run` and confirm their **Events** queue still works.
 
-1. Open the **Review Queue** view — every new event is there, marked
-   **Needs Review**, often with suggested **Topics** already filled in from
-   your Topics table keywords.
-2. For each event: check the details against the **Source URL** link, fix
-   anything wrong (especially missing dates on RSS events), correct the
-   Topics if the bot guessed badly, then set **Status** to `Approved`,
-   `Rejected`, or `Duplicate`.
-3. Check the **Needs Re-review** view occasionally. Events land there when
-   the bot notices something *after* your first review:
-   - **Changed** — the details changed at the source. The bot deliberately
-     does not update the row (your edits always win); open the Source URL,
-     see what changed, fix the row if needed, and uncheck the box.
-   - **Possibly Cancelled** — a future event disappeared from its
-     organization's calendar. Confirm at the source; the box clears itself if
-     the event reappears.
-   - **Possible Duplicate Of** — another organization posted what looks like
-     the same event on the same day. Review both rows and mark one
-     `Duplicate`.
-4. That's the whole job. Approved events are what future digests and calendars
-   will publish.
+Automatic scheduling and source discovery are Phase 4 work. Until scheduling
+is configured, a technical operator must start collection with the command
+above; daily Airtable work still requires no terminal.
 
-**Never edit the Event UID or Source Hash columns** — those are how the bot
-recognizes events and detects changes.
+## Daily Operation: No Terminal
 
-## Step 8 — Running it regularly
+Use the Abundroid Airtable Interface rather than raw tables for routine work.
+The interface should expose friendly actions and hide IDs, hashes, source
+formats, and other bookkeeping fields.
 
-For now, run `abundroid run` whenever you want fresh events (daily or weekly
-is plenty). Automatic scheduled runs (the bot running itself every morning via
-GitHub Actions, no computer needed) are Phase 4 on the roadmap.
+### Add an organization
 
----
+1. Select **Add Organization**.
+2. Enter its **Name** and **Website**. Add category, priority, and notes if
+   useful.
+3. Leave **Active** on and choose `Approved` when monitoring should begin.
+   Choose `Watchlist` or `Suggested` when the organization is only a
+   candidate.
+4. Add and activate at least one related **Source**. A Source is the specific
+   blog, newsroom, feed, or calendar to check.
+
+During the RSS-first milestone, an advanced administrator may need to paste a
+feed URL and select `rss`. The planned source discovery assistant will
+suggest Sources from the organization website so normal operators only approve
+them. An approved organization with no active Sources is safely stored but
+produces no Items.
+
+### Edit or pause an organization
+
+- Use **Edit** to change its display name, website, category, priority, or
+  notes. Editing an organization does not change old Items.
+- Use **Pause** for a temporary stop. This clears **Active** and prevents all
+  related Sources from being collected without changing their individual
+  settings.
+- To pause only one endpoint, clear **Active** on that Source instead.
+
+### Archive and restore
+
+- Use **Archive** when the team no longer wants to monitor an organization.
+  The action sets **Stage** to `Archived` and clears **Active**.
+- Archived organizations and their Sources disappear from normal active views,
+  but their Items and future Source Runs remain available.
+- Use **Restore** to return an organization to `Approved`, then turn
+  **Active** on when collection should resume. Sources that were individually
+  paused remain paused.
+
+### Permanently delete
+
+Permanent deletion is not a normal operator action. A base administrator must
+confirm it in an admin-only view or interface.
+
+Before deleting an Organization, deactivate its Sources. Do not cascade the
+deletion to historical Items. Retain the publisher text and source facts on
+those Items, and unlink the deleted configuration record if Airtable requires
+it. Prefer archiving unless privacy, legal, or data-quality policy requires
+erasure.
+
+### Review new Items
+
+1. Open **Review Queue**.
+2. Open the **Canonical URL** or **Source URL** and compare it with the record.
+3. Correct the title, kind, author, summary, or Topics if needed.
+4. Set **Status** to `Approved`, `Rejected`, or `Duplicate`.
+5. Add **Reviewer Notes** when another reviewer will need context.
+
+Do not edit **Item UID**, **Source Item ID**, **Source Hash**, **First Seen**,
+or **Last Seen**. These fields let the bot recognize a publication across
+runs. Once a person edits editorial copy, later source updates do not silently
+replace it; a change is flagged for review.
+
+### Check source health (Phase 4)
+
+Once Phase 4 is implemented, open **Source Health** and use the plain-language
+status:
+
+| Status | Meaning | Operator action |
+|---|---|---|
+| `Working` | The last fetch succeeded | None |
+| `No recent items` | Fetch succeeded but found nothing new recently | Usually none; inspect if unexpected |
+| `Needs attention` | The source failed or its format changed | Open the latest Source Run and ask an advanced admin to fix the URL or format |
+| `Paused` | The Source or its Organization is inactive | None unless it should resume |
+
+The current collector does not write these statuses. Until Phase 4, the
+technical operator checks command output. One broken Source does not stop other
+Sources.
+
+## Legacy Events Compatibility
+
+`abundroid run` is the existing calendar-oriented command. It continues to
+read the legacy **Events URL** and **Source Type** fields on **Organizations**
+and write the **Events** table. Do not rename those fields, remove the table,
+or point `AIRTABLE_EVENTS_TABLE` at **Items**.
+
+The unified `abundroid collect` command reads **Sources** and writes **Items**.
+Running both during migration is supported. A future migration tool will copy
+appropriate Events into Items with `Kind = event`; do not copy records by
+hand unless you also preserve their identity fields.
 
 ## Troubleshooting
 
-| What you see | What it means | What to do |
-|---|---|---|
-| `error (getaddrinfo failed)` or `error (404 ...)` next to an org | That org's URL is wrong or unreachable | Check the Events URL in a browser; fix or mark org Inactive |
-| `unknown source type` | Source Type isn't `ical`, `rss`, or `jsonld` | That's expected for `html` rows until Phase 4 — leave them or pause them |
-| `ok, 0 found` | The feed is real but currently empty | Usually fine on feeds; on a `jsonld` row whose page clearly lists events, the site doesn't embed event data — change the row to `html` |
-| `abundroid: command not found` | The environment isn't active | Re-run the activate command from Step 1 |
-| Events show up twice | Two different URLs for the same event (e.g., org page + Eventbrite) | If both are same-day with similar titles, the bot cross-flags them (**Possible Duplicate Of**); either way, mark one `Duplicate` |
+| Symptom | Action |
+|---|---|
+| `abundroid: command not found` | Activate the virtual environment and reinstall with `pip install -e .` |
+| Airtable returns `401` or `403` | Check the token, scopes, and base access |
+| Airtable reports an unknown field | Match field names and types to `airtable-schema.md` |
+| A Source is not collected | Confirm its Organization is `Approved` and Active, and the Source is Active |
+| A feed succeeds but produces no Items | An empty feed may be valid; inspect command output until Source Runs is wired |
+| The same publication appears twice | Mark one `Duplicate`; retain both until identity rules are checked |
+| An archived organization still runs | Confirm **Active** is off on the Organization and restart the next collection |
 
-## Rules the bot always follows
+## Safety Rules
 
-- It never approves or publishes anything — humans do that.
-- It never invents dates, titles, or links; missing details stay blank for a
-  human to fill in.
-- It never deletes rows, and it never overwrites edits a human made to an
-  event.
-- One broken source never stops the rest of the run.
-
-Questions or something not covered here? Open an issue on the
-[GitHub repository](https://github.com/boxwrench/Abundroid/issues).
+- The bot never approves or publishes an Item.
+- Missing source facts remain blank; the bot does not invent them.
+- Human editorial changes are not silently overwritten.
+- Archiving configuration preserves history.
+- Credentials belong in environment secrets, never Airtable fields or Git.

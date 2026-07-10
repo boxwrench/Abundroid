@@ -1,135 +1,149 @@
-<p align="center">
-  <img src="assets/abundroid-logo.png" alt="Abundroid" width="520">
+<p align='center'>
+  <img src='assets/abundroid-logo.png' alt='Abundroid' width='520'>
 </p>
 
-**Abundroid is a robot assistant that checks the events pages of the
-organizations you care about, so nobody on your team has to.**
+**Abundance Ecosystem Publication Tracker keeps one shared list of what
+organizations across the ecosystem publish.** It checks approved websites and
+feeds for new articles, posts, updates, announcements, and reports, then puts
+those publications in a review queue.
 
-Every time it runs, it visits each organization on your list, collects any
-upcoming events it finds, skips everything it has already seen, and adds only
-the genuinely new ones to a shared "Needs Review" list in Airtable. A human
-looks at that list, fixes anything wrong, and approves or rejects each event.
-Only human-approved events ever go anywhere public.
+Think of it as a set of watchlists:
 
-That's the whole idea: **the bot does the tedious checking; people keep all
-the judgment calls.**
+- An **organization** is a publisher, such as a nonprofit, funder, or network.
+- A **source** is one place that organization publishes, such as its newsroom,
+  blog, or updates page.
+- An **item** is one publication found there.
 
-> **Ready to set it up?** Follow the step-by-step guide:
-> **[docs/SETUP.md](docs/SETUP.md)** — from zero to reviewing real events in
-> about 30–45 minutes.
+The tracker does the repetitive checking. People decide what is relevant,
+correct the suggested title, summary, and topics, and approve or reject each
+item. It never publishes without human approval and never silently overwrites
+reviewed copy.
 
-## What it can do today
+## What staff can do
 
-- Watch any number of organizations that publish a **calendar feed** (iCal),
-  a **news feed** (RSS), or an ordinary **events webpage** with embedded event
-  data (covers Eventbrite, Luma, and most WordPress event calendars) — you
-  just paste the address into a table.
-- Collect each event's title, date, location, description, and registration
-  link, and put it in your review queue.
-- **Suggest topics automatically.** Keywords your team maintains in the Topics
-  table ("zoning", "nuclear", "transit"…) are matched against each new event,
-  and matching topics are pre-filled for the reviewer to correct.
-- **Flag events that need a second look:** an already-reviewed event whose
-  details changed at the source, a future event that vanished from its
-  organizer's calendar (possibly cancelled), or two organizations announcing
-  what looks like the same event on the same day. The bot only ever flags —
-  it never edits or removes what a human reviewed.
-- **Never show you the same event twice.** Each event gets a fingerprint; on
-  every run the bot recognizes events it has already delivered and quietly
-  notes "still there" instead of re-adding them. Your review queue only ever
-  contains new work.
-- Keep going when one source breaks — a dead link on one org's site never
-  stops the other orgs from being checked.
-- Run entirely without any accounts (using simple spreadsheet files) so anyone
-  can try it before connecting the real Airtable base.
+Most Abundance staff use the Airtable Interface, not a terminal. They can:
 
-## What it deliberately does NOT do
+- Add an organization and its website
+- Pause or resume monitoring
+- Add, pause, or update a publication source
+- Archive an organization while keeping its past publications
+- Restore an archived organization
+- Review new publications and mark them approved, rejected, or duplicate
 
-These are design promises, not missing features:
+They do not need to understand feeds, database IDs, hashes, or code. A
+technical deployer sets up the tracker and fixes a source when its website
+changes.
+## Who needs technical knowledge?
 
-- It **never publishes anything without human approval.**
-- It **never makes up details.** If a source doesn't state the date, the date
-  arrives blank and a human fills it in.
-- It **never deletes or overwrites your edits.** Humans win every conflict.
-- It doesn't scrape social media, bypass logins or paywalls, or crawl the
-  open internet — it only visits the specific pages you listed.
+One technical deployer installs Abundroid, creates the Airtable fields, stores
+the access token, and manually starts collection. Scheduled runs arrive in
+Phase 4.
+Routine editorial and organization-management work then happens in an Airtable
+Interface and requires no terminal:
 
-## How we know it works
-
-- **187 automated tests** check every behavior — parsing, deduplication,
-  tagging, flagging, and every "never do" promise above. They all pass before
-  any change is published.
-- **Verified against the real internet**, not just test files: a live run
-  pulled 20 events from a Luma city page, 40 from Eventbrite, 28 from a real
-  iCal calendar, and 20 from a real RSS feed. Running the exact same command
-  again reported `0 new, 68 seen` — the no-duplicates promise, demonstrated.
-- **Failure was tested on purpose**: that same run included a deliberately
-  dead URL, which errored cleanly while every other organization was still
-  checked.
-
-## How your team controls it
-
-Everything is driven by ordinary Airtable tables — no code, no config files:
-
-| You want to… | You do… |
+| Daily task | Where it happens |
 |---|---|
-| Watch a new organization | Add a row to the **Organizations** table |
-| Stop watching one (maybe temporarily) | Uncheck its **Active** box — never delete |
-| Park a "maybe" organization | Set its **Stage** to `Watchlist` or `Suggested` |
-| Change how events get categorized | Edit keywords in the **Topics** table — takes effect next run |
-| Approve / reject / fix an event | Work the **Review Queue** view in the **Events** table |
-| Re-check events the bot flagged | Work the **Needs Re-review** view (changed / possibly cancelled / possible duplicates) |
-| See which sources are broken | Check the **Source Health** view |
+| Add or edit an organization | **Organizations** form/detail page |
+| Temporarily stop monitoring | **Pause** action on the organization |
+| Stop monitoring but keep its history | **Archive** action |
+| Bring an archived organization back | **Restore** action |
+| Add or pause a blog, newsroom, feed, or calendar | Related **Sources** list |
+| Review new publications | **Review Queue** in **Items** |
+| See which source needs help | **Source Health** (Phase 4) |
 
-Things that currently *do* need a developer: adding a brand-new source type,
-changing how often the bot runs, and changing the digest format (once digests
-exist). The [roadmap](docs/ROADMAP.md) shows what's coming in what order.
+Permanent deletion is restricted to base administrators. Normal operators
+archive instead, so previously collected Items remain available. See the
+[daily operator guide](docs/SETUP.md#daily-operation-no-terminal).
 
-## Where the project stands
+## The data model
 
-**Working now (Phases 1–2):** the complete pipeline described above — iCal,
-RSS, and embedded-event webpages (Eventbrite/Luma/WordPress), topic tagging,
-change detection, cancellation and duplicate flagging — with 187 automated
-tests. One Phase 2 item is deliberately deferred: the AI tiebreaker for
-ambiguous topic matches waits until real review data shows it's needed.
+- **Organizations** contains one durable record per organization. An
+  organization is not duplicated just because it has several places to watch.
+- **Sources** contains the endpoints Abundroid checks, such as a blog feed,
+  newsroom, newsletter archive, or calendar. One organization can have many.
+- **Items** is the unified review stream. Filtered views provide separate
+  article, update, announcement, report, and event queues without separate
+  pipelines.
+- **Source Runs** will record plain-language health and errors for each source
+  in Phase 4.
+- **Topics** contains the editable keyword taxonomy used for suggestions.
 
-**Next (Phase 3):** articles, blog posts, and announcements. "Events" always
-meant occurrences broadly — the same watch/dedupe/review pipeline will cover
-what organizations *publish*, not just what they schedule, in its own review
-queue.
+The exact fields, views, and field ownership rules are in
+[docs/airtable-schema.md](docs/airtable-schema.md).
 
-**Then (Phases 4–5):** AI-assisted extraction for pages with no embedded
-event data, automatic scheduled runs, source health tracking, and the weekly
-digest.
+## Current transition
 
-The full plan, including long-term ideas and what was deliberately postponed,
-lives in **[docs/ROADMAP.md](docs/ROADMAP.md)**. The original planning
-documents are archived in `archive/`.
-
-## Key documents
-
-- **[docs/SETUP.md](docs/SETUP.md)** — install it and connect your own
-  Airtable and organizations. **Start here.**
-- **[docs/airtable-schema.md](docs/airtable-schema.md)** — the exact Airtable
-  base layout to create (tables, fields, views).
-- **[docs/ROADMAP.md](docs/ROADMAP.md)** — what's built, what's next, what's
-  postponed and why.
-
-## For developers
-
-Python 3.11+, no database — state lives in Airtable (or local CSV in
-credential-free mode). Credentials come only from environment variables; see
-`.env.example`.
+Abundroid is moving from a calendar-oriented prototype to the unified Items
+model. The two commands remain intentionally separate during migration:
 
 ```bash
-pip install -e ".[dev]"
-python -m pytest          # 187 tests, all offline (golden fixtures)
-abundroid run --dry-run   # fetch and print, write nothing
+abundroid collect    # new Sources -> Items publication-monitoring path
+abundroid run        # legacy Organizations -> Events compatibility path
 ```
 
-Layout: `src/abundroid/adapters/` (one small module per source type, each
-exposing `parse(text, org) -> list[Event]`), `stores/` (CSV and Airtable
-persistence behind the same upsert interface), `uid.py` (identity and
-change-detection fingerprints), `classifier.py` (keyword topic tagging),
-`dedupe.py` (cross-organization duplicate flagging), `pipeline.py`
-(orchestration), `cli.py` (entry point).
+In local CSV mode, `collect` reads `data/sources.csv` and writes
+`output/items.csv`. The legacy `run` command continues to read
+`data/organizations.csv` and write `output/events.csv`. Existing Airtable
+deployments should keep their **Events** table until the documented migration
+tool is available.
+
+The initial `collect` vertical slice focuses on RSS/Atom and preserves feed
+IDs, canonical links, authors, and publication times. iCal and schema.org Event
+collection remain available through `run` while their compatibility behavior
+is migrated.
+
+## Status at a glance
+
+**Available now:** RSS/Atom Sources to unified Items, CSV and Airtable storage,
+topic suggestions, stable identity, change flags, cross-run duplicate flags,
+review-safe updates, failure isolation, and the legacy Events compatibility
+command.
+
+**Planned, not yet available:** automatic feed discovery, scheduled runs,
+live Source Runs and health status, article JSON-LD and plain-HTML extraction,
+legacy Events migration, and digest generation. The Airtable schema and
+Interface design are documented, but a real base still needs deployment and
+validation.
+
+## Product promises
+
+- Every new Item starts as `Needs Review`; people approve or reject it.
+- Source facts and human-edited fields remain separate.
+- Re-running an unchanged source does not create another Item.
+- One broken Source does not prevent other Sources from being checked.
+- Removing an organization from monitoring does not remove its history.
+- Abundroid only checks approved Sources; it does not bypass logins, paywalls,
+  or access controls.
+
+## Setup
+
+The [setup guide](docs/SETUP.md) separates the one-time technical deployment
+from the no-terminal operator workflow. In brief:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -e '.[dev]'
+python -m pytest
+abundroid collect
+```
+
+Python 3.11 or newer is required. Without Airtable credentials, Abundroid uses
+CSV files so the ingestion path can be tested locally. The example Source is
+disabled to avoid unexpected network requests; replace its URL and set
+`active` to `true` before expecting collected Items.
+
+## Project documents
+
+- [Setup and operator guide](docs/SETUP.md)
+- [Airtable schema and Interface design](docs/airtable-schema.md)
+- [Unified Items implementation plan](docs/IMPLEMENTATION_PLAN.md)
+- [Product roadmap](docs/ROADMAP.md)
+
+Files under `archive/` are historical planning briefs. They retain the old
+calendar-first language for context and are not current product documentation.
+
+For developers, adapters live in `src/abundroid/adapters/`, persistence in
+`src/abundroid/stores/`, and orchestration in `src/abundroid/pipeline.py` and
+the new Items pipeline modules. The legacy `Event` and `run_pipeline`
+contracts remain supported until migration is explicit.
