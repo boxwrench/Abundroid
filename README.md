@@ -47,7 +47,7 @@ Interface and requires no terminal:
 | Temporarily stop monitoring | **Pause** action on the organization |
 | Stop monitoring but keep its history | **Archive** action |
 | Bring an archived organization back | **Restore** action |
-| Add or pause a blog, newsroom, feed, or calendar | Related **Sources** list |
+| Add or pause a blog, newsroom, feed, or updates page | Related **Sources** list |
 | Review new publications | **Review Queue** in **Items** |
 | See which source needs help | **Source Health** (Phase 4) |
 
@@ -60,9 +60,9 @@ archive instead, so previously collected Items remain available. See the
 - **Organizations** contains one durable record per organization. An
   organization is not duplicated just because it has several places to watch.
 - **Sources** contains the endpoints Abundroid checks, such as a blog feed,
-  newsroom, newsletter archive, or calendar. One organization can have many.
+  newsroom, newsletter archive, or updates page. One organization can have many.
 - **Items** is the unified review stream. Filtered views provide separate
-  article, update, announcement, report, and event queues without separate
+  article, update, announcement, and report queues without separate
   pipelines.
 - **Source Runs** will record plain-language health and errors for each source
   in Phase 4.
@@ -71,39 +71,16 @@ archive instead, so previously collected Items remain available. See the
 The exact fields, views, and field ownership rules are in
 [docs/airtable-schema.md](docs/airtable-schema.md).
 
-## Current transition
-
-Abundroid is moving from a calendar-oriented prototype to the unified Items
-model. The two commands remain intentionally separate during migration:
-
-```bash
-abundroid collect    # new Sources -> Items publication-monitoring path
-abundroid run        # legacy Organizations -> Events compatibility path
-```
-
-In local CSV mode, `collect` reads `data/sources.csv` and writes
-`output/items.csv`. The legacy `run` command continues to read
-`data/organizations.csv` and write `output/events.csv`. Existing Airtable
-deployments should keep their **Events** table until the documented migration
-tool is available.
-
-The initial `collect` vertical slice focuses on RSS/Atom and preserves feed
-IDs, canonical links, authors, and publication times. iCal and schema.org Event
-collection remain available through `run` while their compatibility behavior
-is migrated.
-
 ## Status at a glance
 
-**Available now:** RSS/Atom Sources to unified Items, CSV and Airtable storage,
-topic suggestions, stable identity, change flags, cross-run duplicate flags,
-review-safe updates, failure isolation, and the legacy Events compatibility
-command.
+**Available now:** RSS/Atom source collection, CSV and Airtable storage, topic
+suggestions, stable identity, change flags, cross-run duplicate flags,
+review-safe updates, and failure isolation.
 
 **Planned, not yet available:** automatic feed discovery, scheduled runs,
 live Source Runs and health status, article JSON-LD and plain-HTML extraction,
-legacy Events migration, and digest generation. The Airtable schema and
-Interface design are documented, but a real base still needs deployment and
-validation.
+and digest generation. The Airtable schema and Interface design are documented,
+but a real base still needs deployment and validation.
 
 ## Product promises
 
@@ -140,10 +117,9 @@ disabled to avoid unexpected network requests; replace its URL and set
 - [Unified Items implementation plan](docs/IMPLEMENTATION_PLAN.md)
 - [Product roadmap](docs/ROADMAP.md)
 
-Files under `archive/` are historical planning briefs. They retain the old
-calendar-first language for context and are not current product documentation.
+Files under `archive/` are historical planning briefs and are not current
+product documentation.
 
 For developers, adapters live in `src/abundroid/adapters/`, persistence in
 `src/abundroid/stores/`, and orchestration in `src/abundroid/pipeline.py` and
-the new Items pipeline modules. The legacy `Event` and `run_pipeline`
-contracts remain supported until migration is explicit.
+the new Items pipeline modules.
