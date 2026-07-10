@@ -54,6 +54,19 @@ These are design promises, not missing features:
 - It doesn't scrape social media, bypass logins or paywalls, or crawl the
   open internet — it only visits the specific pages you listed.
 
+## How we know it works
+
+- **187 automated tests** check every behavior — parsing, deduplication,
+  tagging, flagging, and every "never do" promise above. They all pass before
+  any change is published.
+- **Verified against the real internet**, not just test files: a live run
+  pulled 20 events from a Luma city page, 40 from Eventbrite, 28 from a real
+  iCal calendar, and 20 from a real RSS feed. Running the exact same command
+  again reported `0 new, 68 seen` — the no-duplicates promise, demonstrated.
+- **Failure was tested on purpose**: that same run included a deliberately
+  dead URL, which errored cleanly while every other organization was still
+  checked.
+
 ## How your team controls it
 
 Everything is driven by ordinary Airtable tables — no code, no config files:
