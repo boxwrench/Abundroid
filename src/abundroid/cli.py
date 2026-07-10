@@ -7,6 +7,7 @@ from pathlib import Path
 
 from abundroid.stores.csv_store import load_organizations as load_orgs_csv, CsvEventStore
 from abundroid.stores.airtable_store import load_organizations as load_orgs_airtable, AirtableEventStore
+from abundroid.classifier import topics_from_airtable, load_topics_csv
 from abundroid.pipeline import run_pipeline
 
 
@@ -79,6 +80,11 @@ def main(argv=None):
         help="Path to output events CSV (default: output/events.csv)"
     )
     run_parser.add_argument(
+        "--topics",
+        default="data/topics.csv",
+        help="Path to topics CSV for tagging (default: data/topics.csv; skipped if absent)"
+    )
+    run_parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Fetch and parse but don't write, print events instead"
@@ -107,6 +113,15 @@ def main(argv=None):
             os.environ.get("AIRTABLE_EVENTS_TABLE", "Events")
         )
         orgs = load_orgs_airtable(orgs_table)
+        try:
+            topics_table = api.table(
+                airtable_base,
+                os.environ.get("AIRTABLE_TOPICS_TABLE", "Topics")
+            )
+            topics = topics_from_airtable(topics_table)
+        except Exception as e:
+            print(f"Warning: could not load Topics table ({e}); tagging skipped")
+            topics = []
         if args.dry_run:
             store = DryRunStore()
         else:
@@ -114,13 +129,17 @@ def main(argv=None):
     else:
         # CSV mode
         orgs = load_orgs_csv(args.orgs)
+        if os.path.exists(args.topics):
+            topics = load_topics_csv(args.topics)
+        else:
+            topics = []
         if args.dry_run:
             store = DryRunStore()
         else:
             store = CsvEventStore(args.out)
 
     # Run pipeline
-    summaries = run_pipeline(orgs, store)
+    summaries = run_pipeline(orgs, store, topics=topics)
 
     # Print summaries
     total_new = 0
@@ -135,12 +154,18 @@ def main(argv=None):
         total_new += new
         total_seen += seen
 
+        cancelled = summary.get("possibly_cancelled", 0)
+        cancelled_note = f", {cancelled} possibly cancelled" if cancelled else ""
         if ok:
-            print(f"{org}: ok, {events_found} found, {new} new, {seen} seen")
+            print(f"{org}: ok, {events_found} found, {new} new, {seen} seen{cancelled_note}")
         else:
-            print(f"{org}: error ({error}), {events_found} found, {new} new, {seen} seen")
+            print(f"{org}: error ({error}), {events_found} found, {new} new, {seen} seen{cancelled_note}")
 
     # Print totals
     print(f"Totals: {total_new} new, {total_seen} seen")
 
     return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -36,8 +36,8 @@ Categorization taxonomy for events; used for tagging and filtering.
 | Field | Type | Notes |
 |---|---|---|
 | Topic | Single line text (primary) | Topic name, e.g., "Zoning Reform", "Housing Supply"; required |
-| Keywords | Long text | Comma-separated keywords used for automated tagging (Phase 2) |
-| Aliases | Long text | Comma-separated alternate topic names (e.g., "YIMBY" → "Housing Advocacy") |
+| Keywords | Long text | Comma-separated keywords used for automated tagging. Matching is case-insensitive on whole words ("art" never matches "startup"). |
+| Aliases | Long text | Comma-separated alternate topic names (e.g., "YIMBY" → "Housing Advocacy"). Treated as extra keywords when tagging. |
 | Exclusions | Long text | Comma-separated terms that disqualify an event from this topic |
 | Priority | Single select | Options: `High`, `Medium`, `Low`; used to rank topics in the UI |
 | Active | Checkbox | Default: checked. Inactive topics are not offered for manual tagging. |
@@ -69,15 +69,18 @@ The review queue and event archive. The bot creates rows with deterministic UIDs
 | Short Description | Long text | 1–2 sentence summary |
 | Description | Long text | Full event description or abstract |
 | Speakers | Long text | Speaker names or list |
-| Topics | Multiple select (or linked records) | Link to Topics table for categorization |
+| Topics | Multiple select | *Bot pre-fills at creation* from the Topics table keywords; humans correct before approval. |
 | Confidence | Number | *Bot writes for AI extraction (Phase 3)*. Confidence score 0–100 if extracted. |
 | Status | Single select | Options: `Needs Review`, `Approved`, `Rejected`, `Duplicate`, `Published`, `Archived`. Humans set this. |
-| Changed | Checkbox | *Bot writes*. Checked if a previously seen event (same UID) had details updated at the source. |
+| Changed | Checkbox | *Bot writes*. Checked if a previously seen event (same UID) had details updated at the source. The bot does **not** overwrite the row with the new details (human edits always win) — open the Source URL to see what changed, then uncheck. |
+| Possibly Cancelled | Checkbox | *Bot writes*. Checked when a future event disappeared from a full-calendar source (iCal/JSON-LD); cleared automatically if it reappears. RSS sources never trigger this (feeds naturally drop old posts). |
+| Possible Duplicate Of | Single line text | *Bot writes at creation*. UID of a suspected same-day twin from a **different** organization; review both and mark one `Duplicate`. |
+| Source Hash | Single line text | *Bot writes*. Fingerprint of the source-provided details, used to detect changes. Do not edit. |
 | First Seen | Date | *Bot writes*. Date this UID first appeared. |
 | Last Seen | Date | *Bot writes*. Most recent date this UID was fetched. |
 | Reviewer Notes | Long text | Human notes during review; not sent to output |
 
-**Bot permissions**: Writes Event UID, First Seen, Last Seen, Changed, Confidence (Phase 3). Reads and may update Start, End, Location, Source URL, Description, and other fields from the fetched event. Humans write Status, Topics, Reviewer Notes, and fill blanks (e.g., Start date for RSS events).
+**Bot permissions**: Writes Event UID, First Seen, Last Seen, Changed, Possibly Cancelled, Possible Duplicate Of, Source Hash, Confidence (Phase 3), and pre-fills Topics at creation. After creation it only ever touches its own bookkeeping fields — it never updates event details on an existing row, so human edits always win. Humans write Status, Reviewer Notes, correct Topics, and fill blanks (e.g., Start date for RSS events).
 
 ---
 
@@ -116,6 +119,10 @@ Execution history; one row per `abundroid run`.
 - **Date field**: Start
 - **Filter**: Status = "Approved" OR Status = "Published"
 - Shows approved/published events on a timeline.
+
+### Needs Re-review (Events)
+- **Filter**: Changed is checked OR Possibly Cancelled is checked OR Possible Duplicate Of is not empty
+- Events the bot flagged after their first review: details changed at the source, the event vanished from a calendar, or a same-day twin appeared from another organization.
 
 ### Suggested Sources (Organizations)
 - **Filter**: Stage = "Suggested" OR Stage = "Watchlist"

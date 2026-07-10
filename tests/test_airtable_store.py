@@ -1,9 +1,10 @@
 """Tests for the Airtable store — strict TDD."""
 
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 from abundroid.models import Event, Organization
 from abundroid.stores.airtable_store import load_organizations, AirtableEventStore
+from abundroid.uid import content_hash
 
 
 class FakeTable:
@@ -13,17 +14,19 @@ class FakeTable:
         """Initialize with empty records."""
         self.records = []
         self.next_id = 1
+        self.last_create_typecast = None  # Track typecast parameter
 
     def all(self):
         """Return all records."""
         return self.records
 
-    def create(self, fields):
+    def create(self, fields, typecast=None):
         """Create a record with the given fields."""
         record_id = f"rec{self.next_id}"
         self.next_id += 1
         record = {"id": record_id, "fields": fields}
         self.records.append(record)
+        self.last_create_typecast = typecast
         return record_id
 
     def update(self, record_id, fields):
@@ -283,3 +286,315 @@ class TestAirtableEventStore:
         assert result["new"] == 1
         assert result["seen"] == 1
         assert len(table.records) == 1
+
+    def test_new_event_writes_phase2_fields(self):
+        """New event includes Source Hash, Topics, Possible Duplicate Of fields."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+        event = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            topics=["Housing", "Community"],
+            possible_duplicate_of="hash:abc123",
+        )
+        store.upsert([event])
+
+        assert len(table.records) == 1
+        fields = table.records[0]["fields"]
+
+        # Verify new Phase 2 fields are present
+        expected_hash = content_hash(event)
+        assert fields["Source Hash"] == expected_hash
+        assert fields["Topics"] == ["Housing", "Community"]
+        assert fields["Possible Duplicate Of"] == "hash:abc123"
+        assert fields.get("Changed") != True  # Should not be set on create
+        assert fields.get("Possibly Cancelled") != True
+
+    def test_new_event_with_empty_topics_omits_field(self):
+        """Topics field is omitted when empty."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+        event = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            topics=[],
+        )
+        store.upsert([event])
+
+        fields = table.records[0]["fields"]
+        assert "Topics" not in fields
+
+    def test_new_event_with_empty_duplicate_omits_field(self):
+        """Possible Duplicate Of field is omitted when empty."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+        event = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            possible_duplicate_of="",
+        )
+        store.upsert([event])
+
+        fields = table.records[0]["fields"]
+        assert "Possible Duplicate Of" not in fields
+
+    def test_create_passes_typecast_true(self):
+        """create() is called with typecast=True."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+        event = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+        )
+        store.upsert([event])
+
+        assert table.last_create_typecast is True
+
+    def test_seen_event_update_dict_contains_only_allowed_keys(self):
+        """Seen event update contains only allowed keys (not title, organizer, etc.)."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+
+        # Create an event first
+        event1 = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            start=datetime(2026, 7, 15, 10, 0, 0),
+        )
+        store.upsert([event1])
+
+        # Manually track what update() was called with
+        original_update = table.update
+        update_calls = []
+        def tracked_update(record_id, fields):
+            update_calls.append(fields)
+            return original_update(record_id, fields)
+        table.update = tracked_update
+
+        # Upsert the same event (should be seen)
+        store.upsert([event1])
+
+        # Verify update was called with only Last Seen
+        assert len(update_calls) == 1
+        update_dict = update_calls[0]
+        assert "Last Seen" in update_dict
+        assert "Title" not in update_dict
+        assert "Organizer" not in update_dict
+        assert "Description" not in update_dict
+
+    def test_seen_event_with_changed_details_includes_changed_and_source_hash(self):
+        """Seen event with different content includes Changed: True and updated Source Hash."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+
+        event1 = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            start=datetime(2026, 7, 15, 10, 0, 0),
+        )
+        store.upsert([event1])
+
+        # Track update calls
+        original_update = table.update
+        update_calls = []
+        def tracked_update(record_id, fields):
+            update_calls.append(fields)
+            return original_update(record_id, fields)
+        table.update = tracked_update
+
+        # Upsert with different content
+        event2 = Event(
+            title="Event 1 Updated",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            start=datetime(2026, 7, 15, 10, 0, 0),
+        )
+        store.upsert([event2])
+
+        update_dict = update_calls[0]
+        assert "Changed" in update_dict
+        assert update_dict["Changed"] is True
+        assert "Source Hash" in update_dict
+        assert update_dict["Source Hash"] == content_hash(event2)
+
+    def test_seen_event_with_identical_details_no_changed_flag(self):
+        """Seen event with identical content does NOT include Changed."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+
+        event = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            start=datetime(2026, 7, 15, 10, 0, 0),
+        )
+        store.upsert([event])
+
+        # Track update calls
+        original_update = table.update
+        update_calls = []
+        def tracked_update(record_id, fields):
+            update_calls.append(fields)
+            return original_update(record_id, fields)
+        table.update = tracked_update
+
+        # Upsert with identical content
+        store.upsert([event])
+
+        update_dict = update_calls[0]
+        # Update should only have Last Seen, no Changed
+        assert set(update_dict.keys()) == {"Last Seen"}
+
+    def test_seen_event_clears_possibly_cancelled_when_truthy(self):
+        """Seen event clears Possibly Cancelled from True to False."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+
+        event = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            start=datetime(2026, 7, 15, 10, 0, 0),
+        )
+        store.upsert([event])
+
+        # Manually set Possibly Cancelled to True
+        table.records[0]["fields"]["Possibly Cancelled"] = True
+
+        # Track update calls
+        original_update = table.update
+        update_calls = []
+        def tracked_update(record_id, fields):
+            update_calls.append(fields)
+            return original_update(record_id, fields)
+        table.update = tracked_update
+
+        # Upsert again
+        store.upsert([event])
+
+        update_dict = update_calls[0]
+        assert "Possibly Cancelled" in update_dict
+        assert update_dict["Possibly Cancelled"] is False
+
+    def test_seen_event_omits_possibly_cancelled_when_falsy(self):
+        """Seen event omits Possibly Cancelled when it's already falsy."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+
+        event = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            start=datetime(2026, 7, 15, 10, 0, 0),
+        )
+        store.upsert([event])
+
+        # Track update calls
+        original_update = table.update
+        update_calls = []
+        def tracked_update(record_id, fields):
+            update_calls.append(fields)
+            return original_update(record_id, fields)
+        table.update = tracked_update
+
+        # Upsert again (Possibly Cancelled not set, so falsy)
+        store.upsert([event])
+
+        update_dict = update_calls[0]
+        # Only Last Seen should be in update, not Possibly Cancelled
+        assert set(update_dict.keys()) == {"Last Seen"}
+
+    def test_flag_missing_flags_future_dated_absent_event(self):
+        """flag_missing flags events absent from present_uids if they're future-dated and Approved/Needs Review."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+
+        future_date = (date.today() + timedelta(days=1)).isoformat()
+        past_date = (date.today() - timedelta(days=1)).isoformat()
+        today_str = date.today().isoformat()
+
+        # Create events
+        table.records = [
+            {"id": "rec1", "fields": {
+                "Event UID": "uid1", "Title": "Event Future", "Organizer": "Org A",
+                "Start": f"{future_date}T10:00:00", "Status": "Needs Review",
+                "Possibly Cancelled": False
+            }},
+            {"id": "rec2", "fields": {
+                "Event UID": "uid2", "Title": "Event Past", "Organizer": "Org A",
+                "Start": f"{past_date}T10:00:00", "Status": "Approved",
+                "Possibly Cancelled": False
+            }},
+            {"id": "rec3", "fields": {
+                "Event UID": "uid3", "Title": "Event No Start", "Organizer": "Org A",
+                "Status": "Needs Review",
+                "Possibly Cancelled": False
+            }},
+        ]
+
+        # Track update calls
+        original_update = table.update
+        update_calls = []
+        def tracked_update(record_id, fields):
+            update_calls.append((record_id, fields))
+            return original_update(record_id, fields)
+        table.update = tracked_update
+
+        # Flag missing for Org A, only uid3 is present
+        result = store.flag_missing("Org A", {"uid3"})
+
+        # Should flag only uid1
+        assert result == 1
+        assert len(update_calls) == 1
+        record_id, fields = update_calls[0]
+        assert record_id == "rec1"
+        assert fields["Possibly Cancelled"] is True
+
+    def test_flag_missing_does_not_flag_other_organizers(self):
+        """flag_missing only flags events matching the given organizer."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+
+        future_date = (date.today() + timedelta(days=1)).isoformat()
+
+        table.records = [
+            {"id": "rec1", "fields": {
+                "Event UID": "uid1", "Title": "Event 1", "Organizer": "Org A",
+                "Start": f"{future_date}T10:00:00", "Status": "Needs Review"
+            }},
+            {"id": "rec2", "fields": {
+                "Event UID": "uid2", "Title": "Event 2", "Organizer": "Org B",
+                "Start": f"{future_date}T10:00:00", "Status": "Needs Review"
+            }},
+        ]
+
+        # Track update calls
+        original_update = table.update
+        update_calls = []
+        def tracked_update(record_id, fields):
+            update_calls.append(record_id)
+            return original_update(record_id, fields)
+        table.update = tracked_update
+
+        # Flag missing for Org A only
+        result = store.flag_missing("Org A", set())
+
+        # Should flag only uid1
+        assert result == 1
+        assert update_calls == ["rec1"]

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sample JSON-LD Event Page</title>
+</head>
+<body>
+    <h1>Events Page</h1>
+    <p>This page contains JSON-LD structured data for testing.</p>
+
+    <!-- Block 1: @graph with TWO events - one with Place location and tz-aware dates, one with VirtualLocation and list @type -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "Event",
+                "name": "Tech Conference 2026",
+                "description": "Annual technology conference with multiple tracks",
+                "startDate": "2026-09-10T18:00:00-07:00",
+                "endDate": "2026-09-12T17:00:00-07:00",
+                "url": "https://example.com/techconf",
+                "location": {
+                    "@type": "Place",
+                    "address": {
+                        "@type": "PostalAddress",
+                        "streetAddress": "123 Main St",
+                        "addressLocality": "San Francisco",
+                        "addressRegion": "CA"
+                    }
+                }
+            },
+            {
+                "@type": ["Event", "SocialEvent"],
+                "name": "Virtual Networking Mixer",
+                "startDate": "2026-08-15T19:00:00Z",
+                "url": "https://zoom.example.com/meeting",
+                "location": {
+                    "@type": "VirtualLocation",
+                    "url": "https://zoom.example.com/meeting"
+                }
+            }
+        ]
+    }
+    </script>
+
+    <!-- Block 2: Single plain Event dict with string location and no endDate -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Event",
+        "name": "Local Workshop",
+        "description": "Learn web development basics",
+        "startDate": "2026-07-20T14:00:00",
+        "url": "https://example.com/workshop",
+        "location": "Downtown Community Center, Room 101"
+    }
+    </script>
+
+    <!-- Block 3: Organization (must be ignored) -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Example Tech Company",
+        "url": "https://example.com",
+        "logo": "https://example.com/logo.png"
+    }
+    </script>
+
+    <!-- Block 4: Deliberately malformed JSON (must be skipped without error) -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Event",
+        "name": "Broken Event",
+        "startDate": "2026-07-25T10:00:00"
+    ]] MALFORMED [[
+    </script>
+
+    <!-- Block 5: Event node missing "name" (must be skipped) -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Event",
+        "description": "This event has no name and should be skipped",
+        "startDate": "2026-07-30T15:00:00",
+        "location": "Somewhere"
+    }
+    </script>
+
+    <!-- Block 6: Event with "name" but no "startDate" (must yield start=None) -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Event",
+        "name": "Date TBD Event",
+        "description": "The date for this event will be announced later",
+        "url": "https://example.com/pending-event",
+        "location": "Future Location"
+    }
+    </script>
+
+</body>
+</html>

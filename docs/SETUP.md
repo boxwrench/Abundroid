@@ -62,6 +62,11 @@ Run the same command again: notice it reports `0 new`. The bot remembers what
 it has already seen, so re-running never creates duplicates. This is the core
 promise of the whole system.
 
+There's also a starter `data/topics.csv` with a few example topics (Housing,
+Energy, Transit). Events whose title or description mention those keywords
+get the topic filled in automatically — edit the file to try your own. In
+Airtable mode the **Topics** table plays this role instead.
+
 ---
 
 ## Step 3 — Create your Airtable base
@@ -120,22 +125,27 @@ In the **Organizations** table, add a row per organization you want to watch:
 
 ### Finding the Events URL and Source Type
 
-This is the only genuinely fiddly part. The bot reads two kinds of sources
-today:
+This is the only genuinely fiddly part. The bot reads three kinds of sources
+today, in order of preference:
 
 - **`ical`** — a calendar feed. Look for "Subscribe to calendar", "Add to
   calendar", or a link ending in `.ics` on the org's events page. These are
   the best sources: complete dates, times, and locations.
+- **`jsonld`** — an ordinary events webpage with event data embedded in it.
+  You can't see the data, but Eventbrite pages, Luma (lu.ma) pages, and most
+  WordPress event calendars have it. Just paste the address of the org's
+  events page and try it — if the run reports `0 found` on a page that
+  clearly lists events, the site doesn't embed data and you should park the
+  row as `html` instead.
 - **`rss`** — a news feed. Try adding `/feed` to the end of the org's site
   address, or look for an RSS icon. Note: RSS tells us an event was
   *announced* but usually not *when it happens*, so RSS events arrive without
   a date and a reviewer fills it in.
 
-If an org has neither — just a normal events webpage — set Source Type to
-`jsonld` or `html` and leave it Active. The bot will report it as an error for
-now; support for plain webpages is the very next thing on the
-[roadmap](ROADMAP.md) and those rows will start working without any changes
-on your side.
+If none of those work, set Source Type to `html` and leave the row Active.
+The bot will report it as `unknown source type` for now; AI-assisted reading
+of plain webpages is Phase 3 on the [roadmap](ROADMAP.md) and those rows will
+start working without any changes on your side.
 
 ## Step 7 — Run it and review
 
@@ -147,15 +157,28 @@ With your `.env` in place, the bot automatically uses Airtable instead of the
 local files. Then open your base:
 
 1. Open the **Review Queue** view — every new event is there, marked
-   **Needs Review**.
+   **Needs Review**, often with suggested **Topics** already filled in from
+   your Topics table keywords.
 2. For each event: check the details against the **Source URL** link, fix
-   anything wrong (especially missing dates on RSS events), then set
-   **Status** to `Approved`, `Rejected`, or `Duplicate`.
-3. That's the whole job. Approved events are what future digests and calendars
+   anything wrong (especially missing dates on RSS events), correct the
+   Topics if the bot guessed badly, then set **Status** to `Approved`,
+   `Rejected`, or `Duplicate`.
+3. Check the **Needs Re-review** view occasionally. Events land there when
+   the bot notices something *after* your first review:
+   - **Changed** — the details changed at the source. The bot deliberately
+     does not update the row (your edits always win); open the Source URL,
+     see what changed, fix the row if needed, and uncheck the box.
+   - **Possibly Cancelled** — a future event disappeared from its
+     organization's calendar. Confirm at the source; the box clears itself if
+     the event reappears.
+   - **Possible Duplicate Of** — another organization posted what looks like
+     the same event on the same day. Review both rows and mark one
+     `Duplicate`.
+4. That's the whole job. Approved events are what future digests and calendars
    will publish.
 
-**Never edit the Event UID column** — that's how the bot recognizes events it
-has already seen.
+**Never edit the Event UID or Source Hash columns** — those are how the bot
+recognizes events and detects changes.
 
 ## Step 8 — Running it regularly
 
@@ -170,10 +193,10 @@ GitHub Actions, no computer needed) are Phase 3 on the roadmap.
 | What you see | What it means | What to do |
 |---|---|---|
 | `error (getaddrinfo failed)` or `error (404 ...)` next to an org | That org's URL is wrong or unreachable | Check the Events URL in a browser; fix or mark org Inactive |
-| `unknown source type` | Source Type isn't `ical` or `rss` | That's expected for `jsonld`/`html` rows until Phase 2 — leave them or pause them |
-| `ok, 0 found` | The feed is real but currently empty | Usually fine; if it persists for weeks, the feed may have moved |
+| `unknown source type` | Source Type isn't `ical`, `rss`, or `jsonld` | That's expected for `html` rows until Phase 3 — leave them or pause them |
+| `ok, 0 found` | The feed is real but currently empty | Usually fine on feeds; on a `jsonld` row whose page clearly lists events, the site doesn't embed event data — change the row to `html` |
 | `abundroid: command not found` | The environment isn't active | Re-run the activate command from Step 1 |
-| Events show up twice | Two different URLs for the same event (e.g., org page + Eventbrite) | Mark one `Duplicate` — smarter cross-source duplicate flagging is Phase 2 |
+| Events show up twice | Two different URLs for the same event (e.g., org page + Eventbrite) | If both are same-day with similar titles, the bot cross-flags them (**Possible Duplicate Of**); either way, mark one `Duplicate` |
 
 ## Rules the bot always follows
 

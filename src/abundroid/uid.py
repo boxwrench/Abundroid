@@ -86,3 +86,21 @@ def compute_uid(event: Event) -> str:
     hash_digest = hashlib.sha256(hash_input.encode()).hexdigest()
 
     return "hash:" + hash_digest[:16]
+
+
+def content_hash(event: Event) -> str:
+    """
+    Fingerprint the source-provided details of an event (16 hex chars).
+
+    Unlike compute_uid (identity), this changes whenever any detail the source
+    publishes changes — used to flag already-seen events for re-review.
+    """
+    parts = [
+        event.title,
+        event.start.isoformat() if event.start else "",
+        event.end.isoformat() if event.end else "",
+        event.location,
+        event.url,
+        event.description,
+    ]
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]

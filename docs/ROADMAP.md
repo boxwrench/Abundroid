@@ -10,7 +10,7 @@ approve important changes.
 
 > Reliable first. Useful second. Agentic third. Public later.
 
-## Phase 1 — MVP Event Pipeline (in progress)
+## Phase 1 — MVP Event Pipeline (done)
 
 - Organization (source) registry and Topic registry, editable in Airtable by
   non-technical admins; local CSV mode for credential-free development.
@@ -28,20 +28,27 @@ approve important changes.
 - Airtable-native UX from the start: add-organization form view, review queue
   view, source health view. No custom frontend.
 
-## Phase 2 — Broader Sources + Focused Helpers
+## Phase 2 — Broader Sources + Focused Helpers (done, one deferral)
 
-- schema.org/JSON-LD adapter (covers Eventbrite, Luma, most WordPress event
-  plugins).
-- Classifier: keyword/exclusion topic tagging driven by the Topics table, with
-  an AI tiebreaker for ambiguous events (prompt built from the live table).
-- Deduper: fuzzy cross-organization duplicate flagging (never auto-delete).
-- Change detection: previously seen events whose details changed at the source
-  get flagged for re-review; disappeared events flagged possibly cancelled.
+- ✅ schema.org/JSON-LD adapter (covers Eventbrite, Luma, most WordPress event
+  plugins), including ItemList listing pages.
+- ✅ Classifier: keyword/alias/exclusion topic tagging driven by the Topics
+  table (word-boundary, case-insensitive). **Deferred**: the AI tiebreaker for
+  ambiguous events moves to Phase 3 — it needs an Anthropic key plus real
+  review data showing which events keyword rules actually get wrong.
+- ✅ Deduper: fuzzy cross-organization duplicate flagging, same-day only,
+  both rows point at each other (never auto-delete).
+- ✅ Change detection: previously seen events whose details changed at the
+  source get flagged Changed for re-review (rows are never overwritten);
+  future events that disappear from full-calendar sources (iCal/JSON-LD only,
+  never RSS) get flagged Possibly Cancelled, self-clearing on reappearance.
 
 ## Phase 3 — AI Extraction, Health, Automation
 
 - AI-assisted extraction for plain-HTML event pages (grounded fields only,
   content-hash caching). Browser automation stays out of scope.
+- AI tiebreaker for ambiguous topic tagging (deferred from Phase 2; prompt
+  built from the live Topics table).
 - Source Health: per-source status including the "historically productive
   source yields 0 events for 3 runs → Needs attention" rule; Run Log table.
 - Scheduled runs on GitHub Actions cron; secrets via repository secrets.

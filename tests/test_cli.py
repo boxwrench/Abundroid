@@ -187,3 +187,111 @@ class TestCliRunBasic:
 
         # Should complete without error (CSV mode, not Airtable)
         assert result == 0
+
+
+class TestCliTopicsAndFlags:
+    """Phase 2 CLI behavior: topic tagging and cancellation flags."""
+
+    RSS = ('<?xml version="1.0"?><rss><channel><item>'
+           '<title>Zoning Reform Meetup</title>'
+           '<link>https://example.com/zoning</link>'
+           '</item></channel></rss>')
+
+    def _write_orgs(self, tmp_path):
+        orgs_csv = tmp_path / "orgs.csv"
+        orgs_csv.write_text(
+            "name,website,events_url,source_type,active,notes\n"
+            "Test Org,https://test.com,https://test.com/feed.xml,rss,yes,\n"
+        )
+        return orgs_csv
+
+    def test_cli_tags_events_from_topics_csv(self, tmp_path):
+        """--topics file drives tagging; tagged names land in the output CSV."""
+        orgs_csv = self._write_orgs(tmp_path)
+        topics_csv = tmp_path / "topics.csv"
+        topics_csv.write_text(
+            "topic,keywords,aliases,exclusions,active\n"
+            "Housing,zoning,,,yes\n"
+        )
+        output_csv = tmp_path / "output" / "events.csv"
+
+        with patch("abundroid.pipeline.default_fetch", lambda url: self.RSS):
+            result = main(["run", "--orgs", str(orgs_csv),
+                           "--out", str(output_csv), "--topics", str(topics_csv)])
+
+        assert result == 0
+        assert "Housing" in output_csv.read_text()
+
+    def test_cli_missing_topics_file_is_fine(self, tmp_path):
+        """A nonexistent topics file means no tagging, not a crash."""
+        orgs_csv = self._write_orgs(tmp_path)
+        output_csv = tmp_path / "output" / "events.csv"
+
+        with patch("abundroid.pipeline.default_fetch", lambda url: self.RSS):
+            result = main(["run", "--orgs", str(orgs_csv),
+                           "--out", str(output_csv),
+                           "--topics", str(tmp_path / "nope.csv")])
+
+        assert result == 0
+        assert "Zoning Reform Meetup" in output_csv.read_text()
+
+    def test_cli_default_topics_path(self, tmp_path, monkeypatch):
+        """data/topics.csv is picked up automatically when present."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "data").mkdir()
+        (tmp_path / "data" / "organizations.csv").write_text(
+            "name,website,events_url,source_type,active,notes\n"
+            "Test Org,https://test.com,https://test.com/feed.xml,rss,yes,\n"
+        )
+        (tmp_path / "data" / "topics.csv").write_text(
+            "topic,keywords,aliases,exclusions,active\n"
+            "Housing,zoning,,,yes\n"
+        )
+
+        with patch("abundroid.pipeline.default_fetch", lambda url: self.RSS):
+            result = main(["run"])
+
+        assert result == 0
+        assert "Housing" in (tmp_path / "output" / "events.csv").read_text()
+
+    def test_cli_reports_possibly_cancelled(self, tmp_path, capsys):
+        """A future event that vanished from an iCal source is reported."""
+        orgs_csv = tmp_path / "orgs.csv"
+        orgs_csv.write_text(
+            "name,website,events_url,source_type,active,notes\n"
+            "Cal Org,https://test.com,https://test.com/cal.ics,ical,yes,\n"
+        )
+        output_csv = tmp_path / "output" / "events.csv"
+        output_csv.parent.mkdir(parents=True)
+        # Pre-seed a future event from Cal Org whose uid the feed won't contain
+        output_csv.write_text(
+            "uid,title,organizer,url,start,end,location,description,source_url,"
+            "topics,possible_duplicate_of,status,changed,possibly_cancelled,"
+            "source_hash,first_seen,last_seen\n"
+            "url:https://gone.com/e,Vanished Event,Cal Org,https://gone.com/e,"
+            "2030-01-01T18:00:00,,,,https://test.com/cal.ics,,,Needs Review,,,"
+            "abc123,2026-07-01,2026-07-01\n"
+        )
+        fixture = Path(__file__).parent / "fixtures" / "sample.ics"
+        ical_content = fixture.read_text()
+
+        with patch("abundroid.pipeline.default_fetch", lambda url: ical_content):
+            result = main(["run", "--orgs", str(orgs_csv), "--out", str(output_csv)])
+
+        assert result == 0
+        out_text = output_csv.read_text()
+        assert "yes" in [row.split(",")[13] for row in out_text.splitlines()[1:]
+                         if row.startswith("url:https://gone.com/e")][0]
+        captured = capsys.readouterr()
+        assert "1 possibly cancelled" in captured.out
+
+
+def test_module_is_runnable_via_python_dash_m():
+    """python -m abundroid.cli must invoke main, not silently no-op."""
+    import subprocess, sys
+    proc = subprocess.run(
+        [sys.executable, "-m", "abundroid.cli"],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert proc.returncode == 0
+    assert "usage" in proc.stdout.lower()

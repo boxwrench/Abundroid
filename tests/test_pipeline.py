@@ -231,3 +231,117 @@ def test_run_pipeline_uses_provided_adapters():
     summary = summaries[0]
     assert summary["ok"] is True
     assert summary["events_found"] == 1
+
+
+class FlagRecordingStore(FakeEventStore):
+    """Fake store that also records flag_missing calls."""
+
+    def __init__(self):
+        super().__init__()
+        self.flag_calls = []
+
+    def flag_missing(self, organizer, present_uids):
+        self.flag_calls.append((organizer, set(present_uids)))
+        return 2
+
+
+def test_jsonld_in_adapters():
+    """ADAPTERS should include the Phase 2 jsonld adapter."""
+    assert "jsonld" in ADAPTERS
+    assert callable(ADAPTERS["jsonld"])
+
+
+def test_run_pipeline_tags_events_with_topics():
+    """When topics are provided, events are tagged before upsert."""
+    from abundroid.models import Topic
+
+    store = FakeEventStore()
+    orgs = [
+        Organization(name="Test Org", events_url="https://example.com/feed",
+                     source_type="custom", active=True),
+    ]
+
+    def fake_parse(text, org):
+        return [Event(title="Zoning Reform 101", organizer=org.name,
+                      url="https://example.com/e1")]
+
+    topics = [Topic(name="Housing", keywords=["zoning"])]
+    run_pipeline(orgs, store, fetch=lambda url: "x",
+                 adapters={"custom": fake_parse}, topics=topics)
+
+    assert store.upserts[0][0].topics == ["Housing"]
+
+
+def test_run_pipeline_flags_cross_org_duplicates():
+    """Same-day near-identical titles from two different orgs get cross-flagged."""
+    store = FakeEventStore()
+    orgs = [
+        Organization(name="Org A", events_url="https://a.com/feed",
+                     source_type="custom", active=True),
+        Organization(name="Org B", events_url="https://b.com/feed",
+                     source_type="custom", active=True),
+    ]
+
+    def fake_parse(text, org):
+        n = "1" if org.name == "Org A" else "2"
+        return [Event(title="Housing Summit 2026", organizer=org.name,
+                      url=f"https://site{n}.com/event",
+                      start=datetime(2026, 9, 1, 18, 0))]
+
+    run_pipeline(orgs, store, fetch=lambda url: "x",
+                 adapters={"custom": fake_parse})
+
+    event_a = store.upserts[0][0]
+    event_b = store.upserts[1][0]
+    assert event_a.possible_duplicate_of == event_b.uid
+    assert event_b.possible_duplicate_of == event_a.uid
+
+
+def test_run_pipeline_flag_missing_for_full_calendar_sources():
+    """ical/jsonld orgs trigger flag_missing with the uids found this run."""
+    store = FlagRecordingStore()
+    orgs = [
+        Organization(name="Cal Org", events_url="https://example.com/cal.ics",
+                     source_type="ical", active=True),
+    ]
+    fixture_path = Path(__file__).parent / "fixtures" / "sample.ics"
+    ical_content = fixture_path.read_text()
+
+    summaries = run_pipeline(orgs, store, fetch=lambda url: ical_content)
+
+    assert len(store.flag_calls) == 1
+    organizer, present_uids = store.flag_calls[0]
+    assert organizer == "Cal Org"
+    assert present_uids == {e.uid for e in store.upserts[0]}
+    assert summaries[0]["possibly_cancelled"] == 2
+
+
+def test_run_pipeline_no_flag_missing_for_rss():
+    """RSS feeds naturally drop old posts — never treat absence as cancellation."""
+    store = FlagRecordingStore()
+    orgs = [
+        Organization(name="Feed Org", events_url="https://example.com/feed",
+                     source_type="rss", active=True),
+    ]
+    rss = '<?xml version="1.0"?><rss><channel><item><title>E</title><link>https://x.com/e</link></item></channel></rss>'
+
+    summaries = run_pipeline(orgs, store, fetch=lambda url: rss)
+
+    assert store.flag_calls == []
+    assert summaries[0]["possibly_cancelled"] == 0
+
+
+def test_run_pipeline_store_without_flag_missing_is_fine():
+    """Stores lacking flag_missing (e.g. dry-run) must not crash ical runs."""
+    store = FakeEventStore()
+    orgs = [
+        Organization(name="Cal Org", events_url="https://example.com/cal.ics",
+                     source_type="ical", active=True),
+    ]
+    fixture_path = Path(__file__).parent / "fixtures" / "sample.ics"
+    ical_content = fixture_path.read_text()
+
+    summaries = run_pipeline(orgs, store, fetch=lambda url: ical_content)
+
+    assert summaries[0]["ok"] is True
+    assert summaries[0]["possibly_cancelled"] == 0

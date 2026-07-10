@@ -4,13 +4,21 @@ import httpx
 
 from abundroid.models import Event, Organization
 from abundroid.uid import compute_uid
-from abundroid.adapters import ical, rss
+from abundroid.classifier import tag_events
+from abundroid.dedupe import flag_possible_duplicates
+from abundroid.adapters import ical, rss, jsonld
 
 
 ADAPTERS = {
     "ical": ical.parse,
     "rss": rss.parse,
+    "jsonld": jsonld.parse,
 }
+
+# Sources that publish their complete upcoming calendar. Only for these does
+# "event vanished from the source" mean anything — RSS feeds naturally drop
+# old posts, so their absences must never be read as cancellations.
+FULL_CALENDAR_TYPES = {"ical", "jsonld"}
 
 
 def default_fetch(url: str) -> str:
@@ -36,18 +44,27 @@ def default_fetch(url: str) -> str:
     return response.text
 
 
-def run_pipeline(orgs, event_store, fetch=None, adapters=None):
+def run_pipeline(orgs, event_store, fetch=None, adapters=None, topics=None):
     """
     Run the event aggregation pipeline.
 
+    Two phases: first fetch and parse every active organization (errors
+    isolated per org), then — once the whole batch is known — tag topics,
+    flag cross-organization duplicates, and upsert per org. The batch-wide
+    middle step is why upserts can't happen during fetching: duplicates only
+    become visible when events from different orgs sit side by side.
+
     Args:
         orgs: List of Organization objects.
-        event_store: Object with upsert(events) -> dict method.
+        event_store: Object with upsert(events) -> dict method; may optionally
+            provide flag_missing(organizer, present_uids) -> int.
         fetch: Function to fetch URLs (default: default_fetch).
         adapters: Dict of source_type -> parse function (default: ADAPTERS).
+        topics: List of Topic objects for tagging (default: no tagging).
 
     Returns:
-        List of summary dicts: {"org": name, "ok": bool, "error": str, "events_found": int, "new": int, "seen": int}
+        List of summary dicts: {"org": name, "ok": bool, "error": str,
+        "events_found": int, "new": int, "seen": int, "possibly_cancelled": int}
     """
     if fetch is None:
         fetch = default_fetch
@@ -55,57 +72,60 @@ def run_pipeline(orgs, event_store, fetch=None, adapters=None):
         adapters = ADAPTERS
 
     summaries = []
+    parsed = []  # (org, events, summary) for orgs that fetched cleanly
 
+    # Phase 1: fetch and parse every active org, isolating failures
     for org in orgs:
-        # Skip inactive orgs
         if not org.active:
             continue
 
-        # Check if source type is known
+        summary = {
+            "org": org.name,
+            "ok": False,
+            "error": "",
+            "events_found": 0,
+            "new": 0,
+            "seen": 0,
+            "possibly_cancelled": 0,
+        }
+        summaries.append(summary)
+
         if org.source_type not in adapters:
-            summaries.append({
-                "org": org.name,
-                "ok": False,
-                "error": f"unknown source type: {org.source_type}",
-                "events_found": 0,
-                "new": 0,
-                "seen": 0,
-            })
+            summary["error"] = f"unknown source type: {org.source_type}"
             continue
 
         try:
-            # Fetch content
             content = fetch(org.events_url)
-
-            # Parse using adapter
-            parser = adapters[org.source_type]
-            events = parser(content, org)
-
-            # Set uid on each event
+            events = adapters[org.source_type](content, org)
             for event in events:
                 event.uid = compute_uid(event)
-
-            # Upsert events
-            result = event_store.upsert(events)
-
-            # Build summary
-            summaries.append({
-                "org": org.name,
-                "ok": True,
-                "error": "",
-                "events_found": len(events),
-                "new": result["new"],
-                "seen": result["seen"],
-            })
         except Exception as e:
-            # Error isolation: capture error and continue
-            summaries.append({
-                "org": org.name,
-                "ok": False,
-                "error": str(e),
-                "events_found": 0,
-                "new": 0,
-                "seen": 0,
-            })
+            summary["error"] = str(e)
+            continue
+
+        summary["events_found"] = len(events)
+        parsed.append((org, events, summary))
+
+    # Phase 2: batch-wide enrichment across all successfully parsed orgs
+    all_events = [event for _, events, _ in parsed for event in events]
+    if topics:
+        tag_events(all_events, topics)
+    flag_possible_duplicates(all_events)
+
+    # Phase 3: persist per org, still isolating failures
+    for org, events, summary in parsed:
+        try:
+            result = event_store.upsert(events)
+            summary["new"] = result["new"]
+            summary["seen"] = result["seen"]
+
+            flag_missing = getattr(event_store, "flag_missing", None)
+            if flag_missing and org.source_type in FULL_CALENDAR_TYPES:
+                present_uids = {event.uid for event in events}
+                summary["possibly_cancelled"] = flag_missing(org.name, present_uids)
+
+            summary["ok"] = True
+        except Exception as e:
+            summary["error"] = str(e)
 
     return summaries

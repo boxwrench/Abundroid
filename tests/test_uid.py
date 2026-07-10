@@ -286,3 +286,42 @@ class TestComputeUid:
             int(hash_part, 16)
         except ValueError:
             assert False, "Hash part is not valid hex"
+
+
+class TestContentHash:
+    """content_hash fingerprints the source-provided details of an event."""
+
+    def test_same_details_same_hash(self):
+        from abundroid.uid import content_hash
+        a = Event(title="Meetup", organizer="Org", url="https://x.com/e",
+                  start=datetime(2026, 8, 1, 18, 0), location="Hall A",
+                  description="Talk")
+        b = Event(title="Meetup", organizer="Org", url="https://x.com/e",
+                  start=datetime(2026, 8, 1, 18, 0), location="Hall A",
+                  description="Talk")
+        assert content_hash(a) == content_hash(b)
+
+    def test_changed_start_changes_hash(self):
+        from abundroid.uid import content_hash
+        a = Event(title="Meetup", organizer="Org", url="https://x.com/e",
+                  start=datetime(2026, 8, 1, 18, 0))
+        b = Event(title="Meetup", organizer="Org", url="https://x.com/e",
+                  start=datetime(2026, 8, 1, 19, 0))
+        assert content_hash(a) != content_hash(b)
+
+    def test_changed_location_changes_hash(self):
+        from abundroid.uid import content_hash
+        a = Event(title="Meetup", organizer="Org", location="Hall A")
+        b = Event(title="Meetup", organizer="Org", location="Hall B")
+        assert content_hash(a) != content_hash(b)
+
+    def test_none_dates_are_stable(self):
+        from abundroid.uid import content_hash
+        a = Event(title="Meetup", organizer="Org")
+        assert content_hash(a) == content_hash(Event(title="Meetup", organizer="Org"))
+
+    def test_hash_is_short_hex(self):
+        from abundroid.uid import content_hash
+        h = content_hash(Event(title="Meetup", organizer="Org"))
+        assert len(h) == 16
+        assert all(c in "0123456789abcdef" for c in h)

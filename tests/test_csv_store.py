@@ -2,10 +2,11 @@
 
 import tempfile
 from pathlib import Path
-from datetime import date
+from datetime import date, datetime
 
 from abundroid.models import Event, Organization
 from abundroid.stores.csv_store import load_organizations, CsvEventStore
+from abundroid.uid import content_hash
 
 
 class TestLoadOrganizations:
@@ -231,3 +232,354 @@ class TestCsvEventStore:
         # Check data row has ISO formatted dates
         assert "2026-07-15T10:30:00" in content
         assert "2026-07-15T12:00:00" in content
+
+    def test_new_event_writes_phase2_columns(self, tmp_path):
+        """New event row includes source_hash, topics, possible_duplicate_of, changed, possibly_cancelled."""
+        store = CsvEventStore(tmp_path / "events.csv")
+        event = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            topics=["Housing", "Community"],
+            possible_duplicate_of="hash:abc123",
+        )
+        store.upsert([event])
+
+        csv_file = tmp_path / "events.csv"
+        content = csv_file.read_text()
+        lines = content.strip().split("\n")
+
+        # Check header includes new columns
+        header = lines[0]
+        assert "topics" in header
+        assert "possible_duplicate_of" in header
+        assert "source_hash" in header
+        assert "changed" in header
+        assert "possibly_cancelled" in header
+
+        # Check data row has correct values
+        data_row = lines[1]
+        expected_hash = content_hash(event)
+        assert expected_hash in data_row
+        assert "Housing; Community" in data_row
+        assert "hash:abc123" in data_row
+        # changed and possibly_cancelled should be empty on new
+        import csv
+        reader = csv.DictReader(lines)
+        rows = list(reader)
+        assert rows[0]["changed"] == ""
+        assert rows[0]["possibly_cancelled"] == ""
+
+    def test_seen_event_with_changed_details_sets_changed_flag(self, tmp_path):
+        """Seen event with different source_hash sets changed='yes' and updates source_hash."""
+        store = CsvEventStore(tmp_path / "events.csv")
+        event1 = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            start=datetime(2026, 7, 15, 10, 0, 0),
+        )
+        # First upsert
+        store.upsert([event1])
+
+        # Second upsert with same uid but different content (title changed)
+        event2 = Event(
+            title="Event 1 Updated",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            start=datetime(2026, 7, 15, 10, 0, 0),
+        )
+        store.upsert([event2])
+
+        csv_file = tmp_path / "events.csv"
+        import csv
+        with open(csv_file, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert len(rows) == 1
+        assert rows[0]["changed"] == "yes"
+        # source_hash should be updated to the new hash
+        new_hash = content_hash(event2)
+        assert rows[0]["source_hash"] == new_hash
+
+    def test_seen_event_with_identical_details_no_changed_flag(self, tmp_path):
+        """Seen event with identical source_hash does NOT set changed flag."""
+        store = CsvEventStore(tmp_path / "events.csv")
+        event = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            start=datetime(2026, 7, 15, 10, 0, 0),
+        )
+        # First upsert
+        store.upsert([event])
+
+        # Second upsert with same event (identical content)
+        store.upsert([event])
+
+        csv_file = tmp_path / "events.csv"
+        import csv
+        with open(csv_file, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert len(rows) == 1
+        # changed should remain empty (not "yes")
+        assert rows[0]["changed"] == ""
+
+    def test_legacy_row_with_empty_source_hash_gets_backfilled(self, tmp_path):
+        """Legacy row with empty source_hash gets backfilled without setting changed."""
+        csv_file = tmp_path / "events.csv"
+        # Create a legacy CSV file with old format (no source_hash, topics, etc.)
+        csv_file.write_text(
+            "uid,title,organizer,url,start,end,location,description,source_url,status,first_seen,last_seen\n"
+            "url:https://example.com/event1,Event 1,Org A,https://example.com/event1,2026-07-15T10:00:00,,,,,Needs Review,2026-07-01,2026-07-01\n"
+        )
+
+        store = CsvEventStore(csv_file)
+        event = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            start=datetime(2026, 7, 15, 10, 0, 0),
+        )
+        # Upsert the same event
+        store.upsert([event])
+
+        # Read back the CSV
+        import csv
+        with open(csv_file, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert len(rows) == 1
+        # source_hash should be backfilled with the new hash
+        expected_hash = content_hash(event)
+        assert rows[0]["source_hash"] == expected_hash
+        # But changed should NOT be set
+        assert rows[0]["changed"] == ""
+
+    def test_seen_event_clears_possibly_cancelled(self, tmp_path):
+        """Seen event clears possibly_cancelled back to empty."""
+        csv_file = tmp_path / "events.csv"
+        # Create a CSV file with an event marked as possibly_cancelled
+        csv_file.write_text(
+            "uid,title,organizer,url,start,end,location,description,source_url,topics,possible_duplicate_of,status,changed,possibly_cancelled,source_hash,first_seen,last_seen\n"
+            "url:https://example.com/event1,Event 1,Org A,https://example.com/event1,2026-07-15T10:00:00,,,,,,Needs Review,,yes,abcdef123456,2026-07-01,2026-07-01\n"
+        )
+
+        store = CsvEventStore(csv_file)
+        event = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            start=datetime(2026, 7, 15, 10, 0, 0),
+        )
+        # Upsert the event (should be seen)
+        store.upsert([event])
+
+        # Read back and verify possibly_cancelled is cleared
+        import csv
+        with open(csv_file, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert len(rows) == 1
+        assert rows[0]["possibly_cancelled"] == ""
+
+    def test_flag_missing_flags_future_dated_absent_event(self, tmp_path):
+        """flag_missing flags events absent from present_uids if they're future-dated and Approved/Needs Review."""
+        from datetime import timedelta
+        import csv
+        csv_file = tmp_path / "events.csv"
+        future_date = (date.today() + timedelta(days=1)).isoformat()
+        past_date = (date.today() - timedelta(days=1)).isoformat()
+        today_str = date.today().isoformat()
+
+        # Create CSV properly using DictWriter
+        fieldnames = [
+            "uid", "title", "organizer", "url", "start", "end",
+            "location", "description", "source_url", "topics",
+            "possible_duplicate_of", "status", "changed",
+            "possibly_cancelled", "source_hash", "first_seen", "last_seen"
+        ]
+        rows_data = [
+            {"uid": "uid1", "title": "Event Future", "organizer": "Org A", "url": "url1",
+             "start": f"{future_date}T10:00:00", "end": "", "location": "", "description": "",
+             "source_url": "", "topics": "", "possible_duplicate_of": "", "status": "Needs Review",
+             "changed": "", "possibly_cancelled": "", "source_hash": "hash1",
+             "first_seen": today_str, "last_seen": today_str},
+            {"uid": "uid2", "title": "Event Past", "organizer": "Org A", "url": "url2",
+             "start": f"{past_date}T10:00:00", "end": "", "location": "", "description": "",
+             "source_url": "", "topics": "", "possible_duplicate_of": "", "status": "Approved",
+             "changed": "", "possibly_cancelled": "", "source_hash": "hash2",
+             "first_seen": today_str, "last_seen": today_str},
+            {"uid": "uid3", "title": "Event Blank Start", "organizer": "Org A", "url": "url3",
+             "start": "", "end": "", "location": "", "description": "",
+             "source_url": "", "topics": "", "possible_duplicate_of": "", "status": "Needs Review",
+             "changed": "", "possibly_cancelled": "", "source_hash": "hash3",
+             "first_seen": today_str, "last_seen": today_str},
+        ]
+        with open(csv_file, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows_data)
+
+        store = CsvEventStore(csv_file)
+        # Only uid3 is present
+        result = store.flag_missing("Org A", {"uid3"})
+
+        # Should flag uid1 (future and Needs Review), not uid2 (past), not uid3 (present)
+        assert result == 1
+
+        with open(csv_file, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        # Find uid1 and verify it's flagged
+        for row in rows:
+            if row["uid"] == "uid1":
+                assert row["possibly_cancelled"] == "yes"
+            elif row["uid"] == "uid2":
+                assert row["possibly_cancelled"] == ""
+            elif row["uid"] == "uid3":
+                assert row["possibly_cancelled"] == ""
+
+    def test_flag_missing_does_not_flag_rejected_duplicate_status(self, tmp_path):
+        """flag_missing does NOT flag events with Rejected or Duplicate status."""
+        from datetime import timedelta
+        import csv
+        csv_file = tmp_path / "events.csv"
+        future_date = (date.today() + timedelta(days=1)).isoformat()
+        today_str = date.today().isoformat()
+
+        fieldnames = [
+            "uid", "title", "organizer", "url", "start", "end",
+            "location", "description", "source_url", "topics",
+            "possible_duplicate_of", "status", "changed",
+            "possibly_cancelled", "source_hash", "first_seen", "last_seen"
+        ]
+        rows_data = [
+            {"uid": "uid1", "title": "Event Rejected", "organizer": "Org A", "url": "url1",
+             "start": f"{future_date}T10:00:00", "end": "", "location": "", "description": "",
+             "source_url": "", "topics": "", "possible_duplicate_of": "", "status": "Rejected",
+             "changed": "", "possibly_cancelled": "", "source_hash": "hash1",
+             "first_seen": today_str, "last_seen": today_str},
+            {"uid": "uid2", "title": "Event Duplicate", "organizer": "Org A", "url": "url2",
+             "start": f"{future_date}T10:00:00", "end": "", "location": "", "description": "",
+             "source_url": "", "topics": "", "possible_duplicate_of": "", "status": "Duplicate",
+             "changed": "", "possibly_cancelled": "", "source_hash": "hash2",
+             "first_seen": today_str, "last_seen": today_str},
+        ]
+        with open(csv_file, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows_data)
+
+        store = CsvEventStore(csv_file)
+        # Empty present_uids means both would be flagged if not rejected
+        result = store.flag_missing("Org A", set())
+
+        # Should flag nothing due to status
+        assert result == 0
+
+    def test_flag_missing_does_not_flag_other_organizers(self, tmp_path):
+        """flag_missing only flags events matching the given organizer."""
+        from datetime import timedelta
+        import csv
+        csv_file = tmp_path / "events.csv"
+        future_date = (date.today() + timedelta(days=1)).isoformat()
+        today_str = date.today().isoformat()
+
+        fieldnames = [
+            "uid", "title", "organizer", "url", "start", "end",
+            "location", "description", "source_url", "topics",
+            "possible_duplicate_of", "status", "changed",
+            "possibly_cancelled", "source_hash", "first_seen", "last_seen"
+        ]
+        rows_data = [
+            {"uid": "uid1", "title": "Event 1", "organizer": "Org A", "url": "url1",
+             "start": f"{future_date}T10:00:00", "end": "", "location": "", "description": "",
+             "source_url": "", "topics": "", "possible_duplicate_of": "", "status": "Needs Review",
+             "changed": "", "possibly_cancelled": "", "source_hash": "hash1",
+             "first_seen": today_str, "last_seen": today_str},
+            {"uid": "uid2", "title": "Event 2", "organizer": "Org B", "url": "url2",
+             "start": f"{future_date}T10:00:00", "end": "", "location": "", "description": "",
+             "source_url": "", "topics": "", "possible_duplicate_of": "", "status": "Needs Review",
+             "changed": "", "possibly_cancelled": "", "source_hash": "hash2",
+             "first_seen": today_str, "last_seen": today_str},
+        ]
+        with open(csv_file, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows_data)
+
+        store = CsvEventStore(csv_file)
+        # Flag missing only for Org A
+        result = store.flag_missing("Org A", set())
+
+        # Should flag only uid1
+        assert result == 1
+
+        with open(csv_file, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        for row in rows:
+            if row["uid"] == "uid1":
+                assert row["possibly_cancelled"] == "yes"
+            elif row["uid"] == "uid2":
+                assert row["possibly_cancelled"] == ""
+
+    def test_human_edited_columns_survive_updates(self, tmp_path):
+        """Human-edited columns (title, status, etc.) survive upserts and flag_missing."""
+        import csv
+        store = CsvEventStore(tmp_path / "events.csv")
+
+        # Create an event
+        event = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            start=datetime(2026, 7, 15, 10, 0, 0),
+        )
+        store.upsert([event])
+
+        csv_file = tmp_path / "events.csv"
+
+        # Manually edit the CSV: change title and status
+        with open(csv_file, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+        rows[0]["title"] = "Event 1 (Edited by Human)"
+        rows[0]["status"] = "Approved"
+        with open(csv_file, "w", encoding="utf-8", newline="") as f:
+            fieldnames = [
+                "uid", "title", "organizer", "url", "start", "end",
+                "location", "description", "source_url", "topics",
+                "possible_duplicate_of", "status", "changed",
+                "possibly_cancelled", "source_hash", "first_seen", "last_seen"
+            ]
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        # Upsert the same event again
+        store.upsert([event])
+
+        # Verify edits are preserved
+        with open(csv_file, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert len(rows) == 1
+        assert rows[0]["title"] == "Event 1 (Edited by Human)"
+        assert rows[0]["status"] == "Approved"

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
@@ -12,7 +12,7 @@ class Organization:
 
     name: str
     events_url: str
-    source_type: str  # "ical" | "rss" (more types in later phases)
+    source_type: str  # "ical" | "rss" | "jsonld" (more types in later phases)
     website: str = ""
     active: bool = True
     notes: str = ""
@@ -31,3 +31,15 @@ class Event:
     description: str = ""
     source_url: str = ""  # the feed or page this was pulled from
     uid: str = ""  # deterministic identity, computed by abundroid.uid
+    topics: list[str] = field(default_factory=list)  # bot-suggested topic names
+    possible_duplicate_of: str = ""  # uid of a suspected cross-org twin
+
+
+@dataclass
+class Topic:
+    """One row of the Topics table — a tagging rule, not just a label."""
+
+    name: str
+    keywords: list[str] = field(default_factory=list)
+    exclusions: list[str] = field(default_factory=list)
+    active: bool = True
