@@ -70,7 +70,7 @@ The review queue and event archive. The bot creates rows with deterministic UIDs
 | Description | Long text | Full event description or abstract |
 | Speakers | Long text | Speaker names or list |
 | Topics | Multiple select | *Bot pre-fills at creation* from the Topics table keywords; humans correct before approval. |
-| Confidence | Number | *Bot writes for AI extraction (Phase 3)*. Confidence score 0–100 if extracted. |
+| Confidence | Number | *Bot writes for AI extraction (Phase 4)*. Confidence score 0–100 if extracted. |
 | Status | Single select | Options: `Needs Review`, `Approved`, `Rejected`, `Duplicate`, `Published`, `Archived`. Humans set this. |
 | Changed | Checkbox | *Bot writes*. Checked if a previously seen event (same UID) had details updated at the source. The bot does **not** overwrite the row with the new details (human edits always win) — open the Source URL to see what changed, then uncheck. |
 | Possibly Cancelled | Checkbox | *Bot writes*. Checked when a future event disappeared from a full-calendar source (iCal/JSON-LD); cleared automatically if it reappears. RSS sources never trigger this (feeds naturally drop old posts). |
@@ -80,7 +80,7 @@ The review queue and event archive. The bot creates rows with deterministic UIDs
 | Last Seen | Date | *Bot writes*. Most recent date this UID was fetched. |
 | Reviewer Notes | Long text | Human notes during review; not sent to output |
 
-**Bot permissions**: Writes Event UID, First Seen, Last Seen, Changed, Possibly Cancelled, Possible Duplicate Of, Source Hash, Confidence (Phase 3), and pre-fills Topics at creation. After creation it only ever touches its own bookkeeping fields — it never updates event details on an existing row, so human edits always win. Humans write Status, Reviewer Notes, correct Topics, and fill blanks (e.g., Start date for RSS events).
+**Bot permissions**: Writes Event UID, First Seen, Last Seen, Changed, Possibly Cancelled, Possible Duplicate Of, Source Hash, Confidence (Phase 4), and pre-fills Topics at creation. After creation it only ever touches its own bookkeeping fields — it never updates event details on an existing row, so human edits always win. Humans write Status, Reviewer Notes, correct Topics, and fill blanks (e.g., Start date for RSS events).
 
 ---
 

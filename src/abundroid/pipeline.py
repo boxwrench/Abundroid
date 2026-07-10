@@ -74,7 +74,7 @@ def run_pipeline(orgs, event_store, fetch=None, adapters=None, topics=None):
     summaries = []
     parsed = []  # (org, events, summary) for orgs that fetched cleanly
 
-    # Phase 1: fetch and parse every active org, isolating failures
+    # Stage 1: fetch and parse every active org, isolating failures
     for org in orgs:
         if not org.active:
             continue
@@ -106,13 +106,13 @@ def run_pipeline(orgs, event_store, fetch=None, adapters=None, topics=None):
         summary["events_found"] = len(events)
         parsed.append((org, events, summary))
 
-    # Phase 2: batch-wide enrichment across all successfully parsed orgs
+    # Stage 2: batch-wide enrichment across all successfully parsed orgs
     all_events = [event for _, events, _ in parsed for event in events]
     if topics:
         tag_events(all_events, topics)
     flag_possible_duplicates(all_events)
 
-    # Phase 3: persist per org, still isolating failures
+    # Stage 3: persist per org, still isolating failures
     for org, events, summary in parsed:
         try:
             result = event_store.upsert(events)

@@ -34,7 +34,7 @@ approve important changes.
   plugins), including ItemList listing pages.
 - ✅ Classifier: keyword/alias/exclusion topic tagging driven by the Topics
   table (word-boundary, case-insensitive). **Deferred**: the AI tiebreaker for
-  ambiguous events moves to Phase 3 — it needs an Anthropic key plus real
+  ambiguous events moves to Phase 4 — it needs an Anthropic key plus real
   review data showing which events keyword rules actually get wrong.
 - ✅ Deduper: fuzzy cross-organization duplicate flagging, same-day only,
   both rows point at each other (never auto-delete).
@@ -43,7 +43,31 @@ approve important changes.
   future events that disappear from full-calendar sources (iCal/JSON-LD only,
   never RSS) get flagged Possibly Cancelled, self-clearing on reappearance.
 
-## Phase 3 — AI Extraction, Health, Automation
+## Phase 3 — Articles, Posts, Announcements (next up)
+
+The brief's "events" always meant occurrences broadly — things the ecosystem
+produces, not only things on a calendar (clarified 2026-07-09). This phase
+adds written output — blog posts, articles, announcements — as a second lane
+through the same pipeline.
+
+- `Article` model (title, author, published date, URL, summary) alongside
+  `Event`, with the same deterministic uid dedupe.
+- New **Articles** table in Airtable with its own review queue. Article
+  review asks different questions than event review ("is this worth
+  amplifying?" vs "is this date right?"), so the queues stay separate.
+- **Content Type** on organization sources (`events` / `articles`); an org
+  with both a calendar and a blog gets one row per feed.
+- Adapter reuse, not new adapters: RSS becomes a first-class *article* source
+  (it already fetches posts today — they're just forced into event shape);
+  the JSON-LD adapter gains `Article`/`BlogPosting`/`NewsArticle` types
+  alongside `Event`.
+- The topic classifier tags articles from the same Topics table.
+- Every standing promise carries over: nothing publishes without approval,
+  nothing invented, human edits win, never delete.
+- Open decision — needed by the digest phase, not now: one combined digest
+  (events + notable writing) or separate outputs per audience.
+
+## Phase 4 — AI Extraction, Health, Automation
 
 - AI-assisted extraction for plain-HTML event pages (grounded fields only,
   content-hash caching). Browser automation stays out of scope.
@@ -54,9 +78,10 @@ approve important changes.
 - Scheduled runs on GitHub Actions cron; secrets via repository secrets.
 - Query Agent: simple natural-language questions over approved events.
 
-## Phase 4 — Digest, Scale, Handoff
+## Phase 5 — Digest, Scale, Handoff
 
-- Weekly digest drafted from approved events (human reviews and sends). This is
+- Weekly digest drafted from approved events — and approved articles, combined
+  or separate per the open decision in Phase 3 (human reviews and sends). This is
   a committed deliverable, not a maybe — the digest is the system's visible
   output and the reason anyone adopts it.
 - Scale registry to 30–50 organizations; archiving policy for past events.
@@ -82,7 +107,7 @@ opt-in only).
 - Ecosystem intelligence: speaker tracking, relationship graph, co-host
   analysis, topic trend dashboard, city/regional mapping, periodic reports.
   Gated on extraction quality, not calendar time — speaker/co-host fields are
-  the weakest-extracted data and need months of good Phase 3 output first.
+  the weakest-extracted data and need months of good Phase 4 output first.
 - Personalized alerts and recommendations (opt-in, explainable) — deliberately
   last: they need accounts and preference storage, effectively a second
   product. The digest plus public feeds cover most of this value.

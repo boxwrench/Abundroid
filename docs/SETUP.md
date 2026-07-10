@@ -144,7 +144,7 @@ today, in order of preference:
 
 If none of those work, set Source Type to `html` and leave the row Active.
 The bot will report it as `unknown source type` for now; AI-assisted reading
-of plain webpages is Phase 3 on the [roadmap](ROADMAP.md) and those rows will
+of plain webpages is Phase 4 on the [roadmap](ROADMAP.md) and those rows will
 start working without any changes on your side.
 
 ## Step 7 — Run it and review
@@ -184,7 +184,7 @@ recognizes events and detects changes.
 
 For now, run `abundroid run` whenever you want fresh events (daily or weekly
 is plenty). Automatic scheduled runs (the bot running itself every morning via
-GitHub Actions, no computer needed) are Phase 3 on the roadmap.
+GitHub Actions, no computer needed) are Phase 4 on the roadmap.
 
 ---
 
@@ -193,7 +193,7 @@ GitHub Actions, no computer needed) are Phase 3 on the roadmap.
 | What you see | What it means | What to do |
 |---|---|---|
 | `error (getaddrinfo failed)` or `error (404 ...)` next to an org | That org's URL is wrong or unreachable | Check the Events URL in a browser; fix or mark org Inactive |
-| `unknown source type` | Source Type isn't `ical`, `rss`, or `jsonld` | That's expected for `html` rows until Phase 3 — leave them or pause them |
+| `unknown source type` | Source Type isn't `ical`, `rss`, or `jsonld` | That's expected for `html` rows until Phase 4 — leave them or pause them |
 | `ok, 0 found` | The feed is real but currently empty | Usually fine on feeds; on a `jsonld` row whose page clearly lists events, the site doesn't embed event data — change the row to `html` |
 | `abundroid: command not found` | The environment isn't active | Re-run the activate command from Step 1 |
 | Events show up twice | Two different URLs for the same event (e.g., org page + Eventbrite) | If both are same-day with similar titles, the bot cross-flags them (**Possible Duplicate Of**); either way, mark one `Duplicate` |

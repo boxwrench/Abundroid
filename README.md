@@ -93,8 +93,14 @@ change detection, cancellation and duplicate flagging — with 187 automated
 tests. One Phase 2 item is deliberately deferred: the AI tiebreaker for
 ambiguous topic matches waits until real review data shows it's needed.
 
-**Next (Phases 3–4):** AI-assisted extraction for pages with no embedded event
-data, automatic scheduled runs, source health tracking, and the weekly digest.
+**Next (Phase 3):** articles, blog posts, and announcements. "Events" always
+meant occurrences broadly — the same watch/dedupe/review pipeline will cover
+what organizations *publish*, not just what they schedule, in its own review
+queue.
+
+**Then (Phases 4–5):** AI-assisted extraction for pages with no embedded
+event data, automatic scheduled runs, source health tracking, and the weekly
+digest.
 
 The full plan, including long-term ideas and what was deliberately postponed,
 lives in **[docs/ROADMAP.md](docs/ROADMAP.md)**. The original planning
