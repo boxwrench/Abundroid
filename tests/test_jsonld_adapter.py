@@ -266,3 +266,147 @@ class TestItemListTraversal:
         ).replace(']}\n    </script>', ']}]}\n    </script>')
         events = parse(html, self._org())
         assert {e.title for e in events} == {"Wrapped Event One", "Direct Event Two"}
+
+
+class TestRelativeUrlResolution:
+    """Relative event URLs should be resolved against org.events_url."""
+
+    def test_relative_path_resolved_against_events_url(self):
+        """Relative path /events/123 is resolved against org.events_url."""
+        html = """<html><head><script type="application/ld+json">
+        {"@context": "https://schema.org", "@type": "Event",
+         "name": "Relative Event",
+         "startDate": "2026-10-01T18:00:00",
+         "url": "/events/123"}
+        </script></head></html>"""
+        org = Organization(
+            name="Test Org",
+            events_url="https://example.com/calendar",
+            source_type="jsonld"
+        )
+        events = parse(html, org)
+        assert len(events) == 1
+        assert events[0].url == "https://example.com/events/123"
+
+    def test_absolute_url_unchanged(self):
+        """Absolute URLs are not modified."""
+        html = """<html><head><script type="application/ld+json">
+        {"@context": "https://schema.org", "@type": "Event",
+         "name": "Absolute Event",
+         "startDate": "2026-10-01T18:00:00",
+         "url": "https://other-domain.com/events/456"}
+        </script></head></html>"""
+        org = Organization(
+            name="Test Org",
+            events_url="https://example.com/calendar",
+            source_type="jsonld"
+        )
+        events = parse(html, org)
+        assert len(events) == 1
+        assert events[0].url == "https://other-domain.com/events/456"
+
+    def test_relative_paths_from_different_hosts_produce_different_uids(self):
+        """Same relative path from different organizations produces different UIDs."""
+        from abundroid.uid import compute_uid
+
+        html_template = """<html><head><script type="application/ld+json">
+        {"@context": "https://schema.org", "@type": "Event",
+         "name": "Same Event Name",
+         "startDate": "2026-10-01T18:00:00",
+         "url": "/events/123"}
+        </script></head></html>"""
+
+        org1 = Organization(
+            name="Org 1",
+            events_url="https://example.com/calendar",
+            source_type="jsonld"
+        )
+        org2 = Organization(
+            name="Org 2",
+            events_url="https://other.com/events",
+            source_type="jsonld"
+        )
+
+        events1 = parse(html_template, org1)
+        events2 = parse(html_template, org2)
+
+        assert len(events1) == 1
+        assert len(events2) == 1
+
+        uid1 = compute_uid(events1[0])
+        uid2 = compute_uid(events2[0])
+
+        # UIDs should be different because the resolved URLs are different
+        assert uid1 != uid2
+        # First UID should contain example.com
+        assert "example.com/events/123" in uid1
+        # Second UID should contain other.com
+        assert "other.com/events/123" in uid2
+
+    def test_empty_url_retains_empty_string(self):
+        """Empty URL string is preserved as empty string."""
+        html = """<html><head><script type="application/ld+json">
+        {"@context": "https://schema.org", "@type": "Event",
+         "name": "No URL Event",
+         "startDate": "2026-10-01T18:00:00"}
+        </script></head></html>"""
+        org = Organization(
+            name="Test Org",
+            events_url="https://example.com/calendar",
+            source_type="jsonld"
+        )
+        events = parse(html, org)
+        assert len(events) == 1
+        assert events[0].url == ""
+
+    def test_non_string_url_retains_empty_string(self):
+        """Non-string URL values are treated as empty string."""
+        html = """<html><head><script type="application/ld+json">
+        {"@context": "https://schema.org", "@type": "Event",
+         "name": "Non-string URL Event",
+         "startDate": "2026-10-01T18:00:00",
+         "url": 123}
+        </script></head></html>"""
+        org = Organization(
+            name="Test Org",
+            events_url="https://example.com/calendar",
+            source_type="jsonld"
+        )
+        events = parse(html, org)
+        assert len(events) == 1
+        assert events[0].url == ""
+
+    def test_relative_url_with_query_parameters(self):
+        """Relative URL with query parameters is resolved correctly."""
+        html = """<html><head><script type="application/ld+json">
+        {"@context": "https://schema.org", "@type": "Event",
+         "name": "Event with Params",
+         "startDate": "2026-10-01T18:00:00",
+         "url": "/events/123?ref=schedule"}
+        </script></head></html>"""
+        org = Organization(
+            name="Test Org",
+            events_url="https://example.com/calendar",
+            source_type="jsonld"
+        )
+        events = parse(html, org)
+        assert len(events) == 1
+        assert events[0].url == "https://example.com/events/123?ref=schedule"
+
+    def test_protocol_relative_url(self):
+        """Protocol-relative URL is preserved as-is (already absolute in scheme)."""
+        html = """<html><head><script type="application/ld+json">
+        {"@context": "https://schema.org", "@type": "Event",
+         "name": "Protocol Relative Event",
+         "startDate": "2026-10-01T18:00:00",
+         "url": "//cdn.example.com/events/789"}
+        </script></head></html>"""
+        org = Organization(
+            name="Test Org",
+            events_url="https://example.com/calendar",
+            source_type="jsonld"
+        )
+        events = parse(html, org)
+        assert len(events) == 1
+        # Protocol-relative URLs resolve to https scheme when base is https
+        assert events[0].url == "https://cdn.example.com/events/789"

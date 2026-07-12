@@ -2,6 +2,7 @@
 
 import json
 from html.parser import HTMLParser
+from urllib.parse import urljoin
 
 from dateutil import parser as date_parser
 
@@ -219,10 +220,13 @@ def parse(text: str, org: Organization) -> list[Event]:
             start = _parse_date(node.get("startDate"))
             end = _parse_date(node.get("endDate"))
 
-            # Extract other fields
+            # Extract and resolve URL
             url = node.get("url", "")
             if not isinstance(url, str):
                 url = ""
+            elif url:
+                # Resolve relative URLs against org.events_url
+                url = urljoin(org.events_url, url)
 
             description = node.get("description", "")
             if isinstance(description, str):
