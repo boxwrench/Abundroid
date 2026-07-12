@@ -57,7 +57,7 @@ def run_pipeline(orgs, event_store, fetch=None, adapters=None, topics=None):
     Args:
         orgs: List of Organization objects.
         event_store: Object with upsert(events) -> dict method; may optionally
-            provide flag_missing(organizer, present_uids) -> int.
+            provide flag_missing(organizer, source_url, present_uids) -> int.
         fetch: Function to fetch URLs (default: default_fetch).
         adapters: Dict of source_type -> parse function (default: ADAPTERS).
         topics: List of Topic objects for tagging (default: no tagging).
@@ -122,7 +122,7 @@ def run_pipeline(orgs, event_store, fetch=None, adapters=None, topics=None):
             flag_missing = getattr(event_store, "flag_missing", None)
             if flag_missing and org.source_type in FULL_CALENDAR_TYPES:
                 present_uids = {event.uid for event in events}
-                summary["possibly_cancelled"] = flag_missing(org.name, present_uids)
+                summary["possibly_cancelled"] = flag_missing(org.name, org.events_url, present_uids)
 
             summary["ok"] = True
         except Exception as e:

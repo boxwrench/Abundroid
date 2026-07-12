@@ -158,12 +158,13 @@ class CsvEventStore:
 
         return {"new": new_count, "seen": seen_count}
 
-    def flag_missing(self, organizer: str, present_uids: set[str]) -> int:
+    def flag_missing(self, organizer: str, source_url: str, present_uids: set[str]) -> int:
         """
         Flag likely-cancelled events.
 
         For each existing row where:
         - row organizer == organizer
+        - row source_url == source_url
         - row uid not in present_uids
         - row status is "Needs Review" or "Approved"
         - row start is non-empty AND datetime.fromisoformat(start).date() > date.today()
@@ -186,6 +187,7 @@ class CsvEventStore:
 
         for row in rows_to_write:
             if (row.get("organizer", "") == organizer and
+                row.get("source_url", "") == source_url and
                 row.get("uid", "") not in present_uids and
                 row.get("status", "") in ("Needs Review", "Approved")):
 

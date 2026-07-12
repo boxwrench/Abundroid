@@ -133,12 +133,13 @@ class AirtableEventStore:
 
         return {"new": new_count, "seen": seen_count}
 
-    def flag_missing(self, organizer: str, present_uids: set[str]) -> int:
+    def flag_missing(self, organizer: str, source_url: str, present_uids: set[str]) -> int:
         """
         Flag likely-cancelled events.
 
         For each existing record where:
         - record organizer == organizer
+        - record Source URL == source_url
         - record uid not in present_uids
         - record status is "Needs Review" or "Approved"
         - record Start is non-empty AND datetime.fromisoformat(start).date() > date.today()
@@ -152,6 +153,7 @@ class AirtableEventStore:
         for record in self.table.all():
             fields = record.get("fields", {})
             if (fields.get("Organizer", "") == organizer and
+                fields.get("Source URL", "") == source_url and
                 fields.get("Event UID", "") not in present_uids and
                 fields.get("Status", "") in ("Needs Review", "Approved")):
 

@@ -413,17 +413,17 @@ class TestCsvEventStore:
         rows_data = [
             {"uid": "uid1", "title": "Event Future", "organizer": "Org A", "url": "url1",
              "start": f"{future_date}T10:00:00", "end": "", "location": "", "description": "",
-             "source_url": "", "topics": "", "possible_duplicate_of": "", "status": "Needs Review",
+             "source_url": "https://a.com/events", "topics": "", "possible_duplicate_of": "", "status": "Needs Review",
              "changed": "", "possibly_cancelled": "", "source_hash": "hash1",
              "first_seen": today_str, "last_seen": today_str},
             {"uid": "uid2", "title": "Event Past", "organizer": "Org A", "url": "url2",
              "start": f"{past_date}T10:00:00", "end": "", "location": "", "description": "",
-             "source_url": "", "topics": "", "possible_duplicate_of": "", "status": "Approved",
+             "source_url": "https://a.com/events", "topics": "", "possible_duplicate_of": "", "status": "Approved",
              "changed": "", "possibly_cancelled": "", "source_hash": "hash2",
              "first_seen": today_str, "last_seen": today_str},
             {"uid": "uid3", "title": "Event Blank Start", "organizer": "Org A", "url": "url3",
              "start": "", "end": "", "location": "", "description": "",
-             "source_url": "", "topics": "", "possible_duplicate_of": "", "status": "Needs Review",
+             "source_url": "https://a.com/events", "topics": "", "possible_duplicate_of": "", "status": "Needs Review",
              "changed": "", "possibly_cancelled": "", "source_hash": "hash3",
              "first_seen": today_str, "last_seen": today_str},
         ]
@@ -434,7 +434,7 @@ class TestCsvEventStore:
 
         store = CsvEventStore(csv_file)
         # Only uid3 is present
-        result = store.flag_missing("Org A", {"uid3"})
+        result = store.flag_missing("Org A", "https://a.com/events", {"uid3"})
 
         # Should flag uid1 (future and Needs Review), not uid2 (past), not uid3 (present)
         assert result == 1
@@ -469,12 +469,12 @@ class TestCsvEventStore:
         rows_data = [
             {"uid": "uid1", "title": "Event Rejected", "organizer": "Org A", "url": "url1",
              "start": f"{future_date}T10:00:00", "end": "", "location": "", "description": "",
-             "source_url": "", "topics": "", "possible_duplicate_of": "", "status": "Rejected",
+             "source_url": "https://a.com/events", "topics": "", "possible_duplicate_of": "", "status": "Rejected",
              "changed": "", "possibly_cancelled": "", "source_hash": "hash1",
              "first_seen": today_str, "last_seen": today_str},
             {"uid": "uid2", "title": "Event Duplicate", "organizer": "Org A", "url": "url2",
              "start": f"{future_date}T10:00:00", "end": "", "location": "", "description": "",
-             "source_url": "", "topics": "", "possible_duplicate_of": "", "status": "Duplicate",
+             "source_url": "https://a.com/events", "topics": "", "possible_duplicate_of": "", "status": "Duplicate",
              "changed": "", "possibly_cancelled": "", "source_hash": "hash2",
              "first_seen": today_str, "last_seen": today_str},
         ]
@@ -485,7 +485,7 @@ class TestCsvEventStore:
 
         store = CsvEventStore(csv_file)
         # Empty present_uids means both would be flagged if not rejected
-        result = store.flag_missing("Org A", set())
+        result = store.flag_missing("Org A", "https://a.com/events", set())
 
         # Should flag nothing due to status
         assert result == 0
@@ -507,12 +507,12 @@ class TestCsvEventStore:
         rows_data = [
             {"uid": "uid1", "title": "Event 1", "organizer": "Org A", "url": "url1",
              "start": f"{future_date}T10:00:00", "end": "", "location": "", "description": "",
-             "source_url": "", "topics": "", "possible_duplicate_of": "", "status": "Needs Review",
+             "source_url": "https://a.com/events", "topics": "", "possible_duplicate_of": "", "status": "Needs Review",
              "changed": "", "possibly_cancelled": "", "source_hash": "hash1",
              "first_seen": today_str, "last_seen": today_str},
             {"uid": "uid2", "title": "Event 2", "organizer": "Org B", "url": "url2",
              "start": f"{future_date}T10:00:00", "end": "", "location": "", "description": "",
-             "source_url": "", "topics": "", "possible_duplicate_of": "", "status": "Needs Review",
+             "source_url": "https://a.com/events", "topics": "", "possible_duplicate_of": "", "status": "Needs Review",
              "changed": "", "possibly_cancelled": "", "source_hash": "hash2",
              "first_seen": today_str, "last_seen": today_str},
         ]
@@ -523,9 +523,57 @@ class TestCsvEventStore:
 
         store = CsvEventStore(csv_file)
         # Flag missing only for Org A
-        result = store.flag_missing("Org A", set())
+        result = store.flag_missing("Org A", "https://a.com/events", set())
 
         # Should flag only uid1
+        assert result == 1
+
+        with open(csv_file, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        for row in rows:
+            if row["uid"] == "uid1":
+                assert row["possibly_cancelled"] == "yes"
+            elif row["uid"] == "uid2":
+                assert row["possibly_cancelled"] == ""
+
+    def test_flag_missing_does_not_flag_other_sources(self, tmp_path):
+        """flag_missing only flags events matching the given source_url, even for the same organizer."""
+        from datetime import timedelta
+        import csv
+        csv_file = tmp_path / "events.csv"
+        future_date = (date.today() + timedelta(days=1)).isoformat()
+        today_str = date.today().isoformat()
+
+        fieldnames = [
+            "uid", "title", "organizer", "url", "start", "end",
+            "location", "description", "source_url", "topics",
+            "possible_duplicate_of", "status", "changed",
+            "possibly_cancelled", "source_hash", "first_seen", "last_seen"
+        ]
+        rows_data = [
+            {"uid": "uid1", "title": "Event Source A", "organizer": "Org A", "url": "url1",
+             "start": f"{future_date}T10:00:00", "end": "", "location": "", "description": "",
+             "source_url": "https://a.com/events", "topics": "", "possible_duplicate_of": "", "status": "Needs Review",
+             "changed": "", "possibly_cancelled": "", "source_hash": "hash1",
+             "first_seen": today_str, "last_seen": today_str},
+            {"uid": "uid2", "title": "Event Source B", "organizer": "Org A", "url": "url2",
+             "start": f"{future_date}T10:00:00", "end": "", "location": "", "description": "",
+             "source_url": "https://b.com/events", "topics": "", "possible_duplicate_of": "", "status": "Needs Review",
+             "changed": "", "possibly_cancelled": "", "source_hash": "hash2",
+             "first_seen": today_str, "last_seen": today_str},
+        ]
+        with open(csv_file, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows_data)
+
+        store = CsvEventStore(csv_file)
+        # Flag missing for Org A's source A only; neither uid is present in this fetch
+        result = store.flag_missing("Org A", "https://a.com/events", set())
+
+        # Should flag only uid1 (source A), not uid2 (same organizer, different source)
         assert result == 1
 
         with open(csv_file, "r", encoding="utf-8") as f:

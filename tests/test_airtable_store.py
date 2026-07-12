@@ -533,16 +533,19 @@ class TestAirtableEventStore:
         table.records = [
             {"id": "rec1", "fields": {
                 "Event UID": "uid1", "Title": "Event Future", "Organizer": "Org A",
+                "Source URL": "https://a.com/events",
                 "Start": f"{future_date}T10:00:00", "Status": "Needs Review",
                 "Possibly Cancelled": False
             }},
             {"id": "rec2", "fields": {
                 "Event UID": "uid2", "Title": "Event Past", "Organizer": "Org A",
+                "Source URL": "https://a.com/events",
                 "Start": f"{past_date}T10:00:00", "Status": "Approved",
                 "Possibly Cancelled": False
             }},
             {"id": "rec3", "fields": {
                 "Event UID": "uid3", "Title": "Event No Start", "Organizer": "Org A",
+                "Source URL": "https://a.com/events",
                 "Status": "Needs Review",
                 "Possibly Cancelled": False
             }},
@@ -557,7 +560,7 @@ class TestAirtableEventStore:
         table.update = tracked_update
 
         # Flag missing for Org A, only uid3 is present
-        result = store.flag_missing("Org A", {"uid3"})
+        result = store.flag_missing("Org A", "https://a.com/events", {"uid3"})
 
         # Should flag only uid1
         assert result == 1
@@ -576,10 +579,12 @@ class TestAirtableEventStore:
         table.records = [
             {"id": "rec1", "fields": {
                 "Event UID": "uid1", "Title": "Event 1", "Organizer": "Org A",
+                "Source URL": "https://a.com/events",
                 "Start": f"{future_date}T10:00:00", "Status": "Needs Review"
             }},
             {"id": "rec2", "fields": {
                 "Event UID": "uid2", "Title": "Event 2", "Organizer": "Org B",
+                "Source URL": "https://a.com/events",
                 "Start": f"{future_date}T10:00:00", "Status": "Needs Review"
             }},
         ]
@@ -593,8 +598,43 @@ class TestAirtableEventStore:
         table.update = tracked_update
 
         # Flag missing for Org A only
-        result = store.flag_missing("Org A", set())
+        result = store.flag_missing("Org A", "https://a.com/events", set())
 
         # Should flag only uid1
+        assert result == 1
+        assert update_calls == ["rec1"]
+
+    def test_flag_missing_does_not_flag_other_sources(self):
+        """flag_missing only flags records matching the given source_url, even for the same organizer."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+
+        future_date = (date.today() + timedelta(days=1)).isoformat()
+
+        table.records = [
+            {"id": "rec1", "fields": {
+                "Event UID": "uid1", "Title": "Event Source A", "Organizer": "Org A",
+                "Source URL": "https://a.com/events",
+                "Start": f"{future_date}T10:00:00", "Status": "Needs Review"
+            }},
+            {"id": "rec2", "fields": {
+                "Event UID": "uid2", "Title": "Event Source B", "Organizer": "Org A",
+                "Source URL": "https://b.com/events",
+                "Start": f"{future_date}T10:00:00", "Status": "Needs Review"
+            }},
+        ]
+
+        # Track update calls
+        original_update = table.update
+        update_calls = []
+        def tracked_update(record_id, fields):
+            update_calls.append(record_id)
+            return original_update(record_id, fields)
+        table.update = tracked_update
+
+        # Flag missing for Org A's source A only; neither uid present in this fetch
+        result = store.flag_missing("Org A", "https://a.com/events", set())
+
+        # Should flag only rec1 (source A), not rec2 (same organizer, different source)
         assert result == 1
         assert update_calls == ["rec1"]
