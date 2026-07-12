@@ -128,7 +128,8 @@ class TestCliRunBasic:
         with patch("abundroid.pipeline.default_fetch", mock_fetch):
             result = main(["run", "--orgs", str(orgs_csv), "--out", str(output_csv)])
 
-        assert result == 0
+        # Task 4: mixed success/failure should return 1
+        assert result == 1
         captured = capsys.readouterr()
         assert "Good Org" in captured.out
         assert "Bad Org" in captured.out
@@ -153,6 +154,80 @@ class TestCliRunBasic:
 
         assert result == 0
         assert output_csv.exists()
+
+    def test_cli_all_failure_returns_1(self, tmp_path, capsys):
+        """Task 4: All-failure run should return 1."""
+        orgs_csv = tmp_path / "orgs.csv"
+        orgs_csv.write_text(
+            "name,website,events_url,source_type,active,notes\n"
+            "Bad Org 1,https://test.com,https://test.com/bad1.xml,rss,yes,\n"
+            "Bad Org 2,https://test.com,https://test.com/bad2.xml,rss,yes,\n"
+        )
+
+        output_csv = tmp_path / "output" / "events.csv"
+
+        def mock_fetch(url):
+            raise ValueError("Network error")
+
+        with patch("abundroid.pipeline.default_fetch", mock_fetch):
+            result = main(["run", "--orgs", str(orgs_csv), "--out", str(output_csv)])
+
+        assert result == 1
+        captured = capsys.readouterr()
+        assert "Bad Org 1" in captured.out
+        assert "Bad Org 2" in captured.out
+        assert "Totals:" in captured.out
+
+    def test_cli_success_only_returns_0(self, tmp_path, capsys):
+        """Task 4: Fully successful run should return 0."""
+        orgs_csv = tmp_path / "orgs.csv"
+        orgs_csv.write_text(
+            "name,website,events_url,source_type,active,notes\n"
+            "Org 1,https://test.com,https://test.com/feed1.xml,rss,yes,\n"
+            "Org 2,https://test.com,https://test.com/feed2.xml,rss,yes,\n"
+        )
+
+        output_csv = tmp_path / "output" / "events.csv"
+
+        def mock_fetch(url):
+            return '<?xml version="1.0"?><rss><channel><item><title>Event</title><link>https://example.com/e</link></item></channel></rss>'
+
+        with patch("abundroid.pipeline.default_fetch", mock_fetch):
+            result = main(["run", "--orgs", str(orgs_csv), "--out", str(output_csv)])
+
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Org 1" in captured.out
+        assert "Org 2" in captured.out
+        assert "Totals:" in captured.out
+
+    def test_cli_partial_failure_prints_before_exit(self, tmp_path, capsys):
+        """Task 4: Output must be printed before returning exit code."""
+        orgs_csv = tmp_path / "orgs.csv"
+        orgs_csv.write_text(
+            "name,website,events_url,source_type,active,notes\n"
+            "Good Org,https://test.com,https://test.com/feed.xml,rss,yes,\n"
+            "Bad Org,https://test.com,https://test.com/bad.xml,rss,yes,\n"
+        )
+
+        output_csv = tmp_path / "output" / "events.csv"
+
+        def mock_fetch(url):
+            if "bad" in url:
+                raise ValueError("Network error")
+            return '<?xml version="1.0"?><rss><channel><item><title>Event</title><link>https://example.com/e</link></item></channel></rss>'
+
+        with patch("abundroid.pipeline.default_fetch", mock_fetch):
+            result = main(["run", "--orgs", str(orgs_csv), "--out", str(output_csv)])
+
+        # Should have output before returning
+        captured = capsys.readouterr()
+        assert "Good Org" in captured.out
+        assert "Bad Org" in captured.out
+        assert "error" in captured.out
+        assert "Totals:" in captured.out
+        # Now check exit code
+        assert result == 1
 
     def test_cli_env_loader_skip_blank_and_comments(self, tmp_path, monkeypatch):
         """CLI should skip blank lines and comments in .env file."""

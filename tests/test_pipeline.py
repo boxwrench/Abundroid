@@ -240,8 +240,8 @@ class FlagRecordingStore(FakeEventStore):
         super().__init__()
         self.flag_calls = []
 
-    def flag_missing(self, organizer, present_uids):
-        self.flag_calls.append((organizer, set(present_uids)))
+    def flag_missing(self, organizer, source_url, present_uids):
+        self.flag_calls.append((organizer, source_url, set(present_uids)))
         return 2
 
 
@@ -310,8 +310,9 @@ def test_run_pipeline_flag_missing_for_full_calendar_sources():
     summaries = run_pipeline(orgs, store, fetch=lambda url: ical_content)
 
     assert len(store.flag_calls) == 1
-    organizer, present_uids = store.flag_calls[0]
+    organizer, source_url, present_uids = store.flag_calls[0]
     assert organizer == "Cal Org"
+    assert source_url == "https://example.com/cal.ics"
     assert present_uids == {e.uid for e in store.upserts[0]}
     assert summaries[0]["possibly_cancelled"] == 2
 

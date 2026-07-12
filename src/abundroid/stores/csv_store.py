@@ -58,7 +58,9 @@ class CsvEventStore:
         For each event:
         - If uid not present: append row with status "Needs Review", first_seen and last_seen = today,
           plus Phase 2 fields: source_hash, topics, possible_duplicate_of, changed="", possibly_cancelled=""
-        - If present: update last_seen, clear possibly_cancelled, check for content changes, preserve human edits
+        - If present: update last_seen, clear possibly_cancelled, check for content changes, preserve human edits;
+          if incoming event has possible_duplicate_of and the stored value is empty, persist it (never
+          overwrite a non-empty stored value, which may have been reviewed or edited by a human)
 
         Returns {"new": int, "seen": int}
         """
@@ -104,6 +106,11 @@ class CsvEventStore:
                 row = existing_rows[uid]
                 row["last_seen"] = today
                 row["possibly_cancelled"] = ""
+
+                # Persist a late-discovered duplicate link, but never clobber
+                # a stored value — it may have been reviewed or edited by a human.
+                if event.possible_duplicate_of and not row.get("possible_duplicate_of"):
+                    row["possible_duplicate_of"] = event.possible_duplicate_of
 
                 # Check for content changes
                 new_hash = content_hash(event)
@@ -158,12 +165,13 @@ class CsvEventStore:
 
         return {"new": new_count, "seen": seen_count}
 
-    def flag_missing(self, organizer: str, present_uids: set[str]) -> int:
+    def flag_missing(self, organizer: str, source_url: str, present_uids: set[str]) -> int:
         """
         Flag likely-cancelled events.
 
         For each existing row where:
         - row organizer == organizer
+        - row source_url == source_url
         - row uid not in present_uids
         - row status is "Needs Review" or "Approved"
         - row start is non-empty AND datetime.fromisoformat(start).date() > date.today()
@@ -186,6 +194,7 @@ class CsvEventStore:
 
         for row in rows_to_write:
             if (row.get("organizer", "") == organizer and
+                row.get("source_url", "") == source_url and
                 row.get("uid", "") not in present_uids and
                 row.get("status", "") in ("Needs Review", "Approved")):
 

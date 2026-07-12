@@ -140,7 +140,7 @@ def main(argv=None):
     """
     Main CLI entry point.
 
-    Returns 0 on success.
+    Returns 0 if all organizations succeeded, 1 if any failed.
     """
     # Load .env file if present
     load_env()
@@ -252,6 +252,7 @@ def main(argv=None):
     # Print summaries
     total_new = 0
     total_seen = 0
+    any_failed = False
     for summary in summaries:
         org = summary["org"]
         ok = summary["ok"]
@@ -261,6 +262,9 @@ def main(argv=None):
         seen = summary["seen"]
         total_new += new
         total_seen += seen
+
+        if not ok:
+            any_failed = True
 
         cancelled = summary.get("possibly_cancelled", 0)
         cancelled_note = f", {cancelled} possibly cancelled" if cancelled else ""
@@ -272,7 +276,7 @@ def main(argv=None):
     # Print totals
     print(f"Totals: {total_new} new, {total_seen} seen")
 
-    return 0
+    return 1 if any_failed else 0
 
 
 if __name__ == "__main__":

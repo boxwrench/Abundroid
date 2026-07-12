@@ -520,6 +520,86 @@ class TestAirtableEventStore:
         # Only Last Seen should be in update, not Possibly Cancelled
         assert set(update_dict.keys()) == {"Last Seen"}
 
+    def test_seen_event_gains_duplicate_link_when_stored_value_empty(self):
+        """Seen event with a newly-discovered Possible Duplicate Of persists it when stored value is empty."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+
+        event1 = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+        )
+        # First upsert: no duplicate known yet
+        store.upsert([event1])
+
+        # Second upsert (later run): dedupe found a cross-org twin
+        event2 = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            possible_duplicate_of="url:https://other.com/eventX",
+        )
+        store.upsert([event2])
+
+        fields = table.records[0]["fields"]
+        assert fields["Possible Duplicate Of"] == "url:https://other.com/eventX"
+
+    def test_seen_event_preserves_existing_nonempty_duplicate_link(self):
+        """A pre-existing, possibly human-reviewed Possible Duplicate Of is not overwritten."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+
+        event1 = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            possible_duplicate_of="url:https://other.com/original-match",
+        )
+        store.upsert([event1])
+
+        # Later run finds a *different* suspected duplicate
+        event2 = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            possible_duplicate_of="url:https://other.com/new-match",
+        )
+        store.upsert([event2])
+
+        fields = table.records[0]["fields"]
+        # Original stored value wins; not replaced by the new run's match.
+        assert fields["Possible Duplicate Of"] == "url:https://other.com/original-match"
+
+    def test_seen_event_update_omits_duplicate_key_when_incoming_has_no_value(self):
+        """When the incoming event has no possible_duplicate_of, the update dict omits the key."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+
+        event = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+        )
+        store.upsert([event])
+
+        original_update = table.update
+        update_calls = []
+        def tracked_update(record_id, fields):
+            update_calls.append(fields)
+            return original_update(record_id, fields)
+        table.update = tracked_update
+
+        store.upsert([event])
+
+        update_dict = update_calls[0]
+        assert "Possible Duplicate Of" not in update_dict
+
     def test_flag_missing_flags_future_dated_absent_event(self):
         """flag_missing flags events absent from present_uids if they're future-dated and Approved/Needs Review."""
         table = FakeTable()
@@ -533,16 +613,19 @@ class TestAirtableEventStore:
         table.records = [
             {"id": "rec1", "fields": {
                 "Event UID": "uid1", "Title": "Event Future", "Organizer": "Org A",
+                "Source URL": "https://a.com/events",
                 "Start": f"{future_date}T10:00:00", "Status": "Needs Review",
                 "Possibly Cancelled": False
             }},
             {"id": "rec2", "fields": {
                 "Event UID": "uid2", "Title": "Event Past", "Organizer": "Org A",
+                "Source URL": "https://a.com/events",
                 "Start": f"{past_date}T10:00:00", "Status": "Approved",
                 "Possibly Cancelled": False
             }},
             {"id": "rec3", "fields": {
                 "Event UID": "uid3", "Title": "Event No Start", "Organizer": "Org A",
+                "Source URL": "https://a.com/events",
                 "Status": "Needs Review",
                 "Possibly Cancelled": False
             }},
@@ -557,7 +640,7 @@ class TestAirtableEventStore:
         table.update = tracked_update
 
         # Flag missing for Org A, only uid3 is present
-        result = store.flag_missing("Org A", {"uid3"})
+        result = store.flag_missing("Org A", "https://a.com/events", {"uid3"})
 
         # Should flag only uid1
         assert result == 1
@@ -576,10 +659,12 @@ class TestAirtableEventStore:
         table.records = [
             {"id": "rec1", "fields": {
                 "Event UID": "uid1", "Title": "Event 1", "Organizer": "Org A",
+                "Source URL": "https://a.com/events",
                 "Start": f"{future_date}T10:00:00", "Status": "Needs Review"
             }},
             {"id": "rec2", "fields": {
                 "Event UID": "uid2", "Title": "Event 2", "Organizer": "Org B",
+                "Source URL": "https://a.com/events",
                 "Start": f"{future_date}T10:00:00", "Status": "Needs Review"
             }},
         ]
@@ -593,8 +678,43 @@ class TestAirtableEventStore:
         table.update = tracked_update
 
         # Flag missing for Org A only
-        result = store.flag_missing("Org A", set())
+        result = store.flag_missing("Org A", "https://a.com/events", set())
 
         # Should flag only uid1
+        assert result == 1
+        assert update_calls == ["rec1"]
+
+    def test_flag_missing_does_not_flag_other_sources(self):
+        """flag_missing only flags records matching the given source_url, even for the same organizer."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+
+        future_date = (date.today() + timedelta(days=1)).isoformat()
+
+        table.records = [
+            {"id": "rec1", "fields": {
+                "Event UID": "uid1", "Title": "Event Source A", "Organizer": "Org A",
+                "Source URL": "https://a.com/events",
+                "Start": f"{future_date}T10:00:00", "Status": "Needs Review"
+            }},
+            {"id": "rec2", "fields": {
+                "Event UID": "uid2", "Title": "Event Source B", "Organizer": "Org A",
+                "Source URL": "https://b.com/events",
+                "Start": f"{future_date}T10:00:00", "Status": "Needs Review"
+            }},
+        ]
+
+        # Track update calls
+        original_update = table.update
+        update_calls = []
+        def tracked_update(record_id, fields):
+            update_calls.append(record_id)
+            return original_update(record_id, fields)
+        table.update = tracked_update
+
+        # Flag missing for Org A's source A only; neither uid present in this fetch
+        result = store.flag_missing("Org A", "https://a.com/events", set())
+
+        # Should flag only rec1 (source A), not rec2 (same organizer, different source)
         assert result == 1
         assert update_calls == ["rec1"]

@@ -32,13 +32,22 @@ using a terminal or knowing what RSS, JSON-LD, or an adapter is.
 
 The existing Python pipeline fetches RSS, iCal, and schema.org Event JSON-LD;
 tags topics; detects a narrow class of duplicates; and writes review records to
-CSV or Airtable. Its 187 tests protect this behavior while the data model is
+CSV or Airtable. Its 204 tests protect this behavior while the data model is
 migrated.
 
 This prototype is useful infrastructure, but `Event`, `Events URL`, required
 start dates, same-day deduplication, and cancellation handling reflect the old
 calendar interpretation. They are compatibility features, not the target
 product model.
+
+A stabilization batch closed four correctness gaps in this pipeline's
+already-promised behavior — source-scoped cancellation checks, persisted
+duplicate flags on previously-seen events, relative JSON-LD URL resolution,
+and a failing CLI exit status on partial run failure — with a regression test
+behind each fix. See the [Phase 2 Stabilization
+Plan](PHASE2-STABILIZATION-PLAN.md). Worth doing because the legacy Events
+path stays live until existing deployments migrate (see Phase 3 exit criteria
+below).
 
 ## Phase 3 - Unified Published Items (in progress)
 
