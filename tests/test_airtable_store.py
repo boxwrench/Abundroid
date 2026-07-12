@@ -520,6 +520,86 @@ class TestAirtableEventStore:
         # Only Last Seen should be in update, not Possibly Cancelled
         assert set(update_dict.keys()) == {"Last Seen"}
 
+    def test_seen_event_gains_duplicate_link_when_stored_value_empty(self):
+        """Seen event with a newly-discovered Possible Duplicate Of persists it when stored value is empty."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+
+        event1 = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+        )
+        # First upsert: no duplicate known yet
+        store.upsert([event1])
+
+        # Second upsert (later run): dedupe found a cross-org twin
+        event2 = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            possible_duplicate_of="url:https://other.com/eventX",
+        )
+        store.upsert([event2])
+
+        fields = table.records[0]["fields"]
+        assert fields["Possible Duplicate Of"] == "url:https://other.com/eventX"
+
+    def test_seen_event_preserves_existing_nonempty_duplicate_link(self):
+        """A pre-existing, possibly human-reviewed Possible Duplicate Of is not overwritten."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+
+        event1 = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            possible_duplicate_of="url:https://other.com/original-match",
+        )
+        store.upsert([event1])
+
+        # Later run finds a *different* suspected duplicate
+        event2 = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            possible_duplicate_of="url:https://other.com/new-match",
+        )
+        store.upsert([event2])
+
+        fields = table.records[0]["fields"]
+        # Original stored value wins; not replaced by the new run's match.
+        assert fields["Possible Duplicate Of"] == "url:https://other.com/original-match"
+
+    def test_seen_event_update_omits_duplicate_key_when_incoming_has_no_value(self):
+        """When the incoming event has no possible_duplicate_of, the update dict omits the key."""
+        table = FakeTable()
+        store = AirtableEventStore(table)
+
+        event = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+        )
+        store.upsert([event])
+
+        original_update = table.update
+        update_calls = []
+        def tracked_update(record_id, fields):
+            update_calls.append(fields)
+            return original_update(record_id, fields)
+        table.update = tracked_update
+
+        store.upsert([event])
+
+        update_dict = update_calls[0]
+        assert "Possible Duplicate Of" not in update_dict
+
     def test_flag_missing_flags_future_dated_absent_event(self):
         """flag_missing flags events absent from present_uids if they're future-dated and Approved/Needs Review."""
         table = FakeTable()

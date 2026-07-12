@@ -394,6 +394,69 @@ class TestCsvEventStore:
         assert len(rows) == 1
         assert rows[0]["possibly_cancelled"] == ""
 
+    def test_seen_event_gains_duplicate_link_when_stored_value_empty(self, tmp_path):
+        """Seen event with a newly-discovered possible_duplicate_of persists it when stored value is empty."""
+        store = CsvEventStore(tmp_path / "events.csv")
+        event1 = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+        )
+        # First upsert: no duplicate known yet
+        store.upsert([event1])
+
+        # Second upsert (later run): dedupe found a cross-org twin
+        event2 = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            possible_duplicate_of="url:https://other.com/eventX",
+        )
+        store.upsert([event2])
+
+        csv_file = tmp_path / "events.csv"
+        import csv
+        with open(csv_file, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert len(rows) == 1
+        assert rows[0]["possible_duplicate_of"] == "url:https://other.com/eventX"
+
+    def test_seen_event_preserves_existing_nonempty_duplicate_link(self, tmp_path):
+        """A pre-existing, possibly human-reviewed possible_duplicate_of is not overwritten."""
+        store = CsvEventStore(tmp_path / "events.csv")
+        event1 = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            possible_duplicate_of="url:https://other.com/original-match",
+        )
+        store.upsert([event1])
+
+        # Later run finds a *different* suspected duplicate
+        event2 = Event(
+            title="Event 1",
+            organizer="Org A",
+            url="https://example.com/event1",
+            uid="url:https://example.com/event1",
+            possible_duplicate_of="url:https://other.com/new-match",
+        )
+        store.upsert([event2])
+
+        csv_file = tmp_path / "events.csv"
+        import csv
+        with open(csv_file, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert len(rows) == 1
+        # Original stored value wins; not replaced by the new run's match.
+        assert rows[0]["possible_duplicate_of"] == "url:https://other.com/original-match"
+
     def test_flag_missing_flags_future_dated_absent_event(self, tmp_path):
         """flag_missing flags events absent from present_uids if they're future-dated and Approved/Needs Review."""
         from datetime import timedelta

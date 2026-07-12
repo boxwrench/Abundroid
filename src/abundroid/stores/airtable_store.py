@@ -55,7 +55,9 @@ class AirtableEventStore:
         For each event:
         - If uid not present: create with Status "Needs Review", First Seen/Last Seen = today ISO,
           plus Phase 2 fields: Source Hash, Topics (if non-empty), Possible Duplicate Of (if non-empty)
-        - If present: update Last Seen, clear Possibly Cancelled if truthy, check for content changes
+        - If present: update Last Seen, clear Possibly Cancelled if truthy, check for content changes;
+          if incoming event has Possible Duplicate Of and the stored value is empty, persist it (never
+          overwrite a non-empty stored value, which may have been reviewed or edited by a human)
 
         Returns {"new": int, "seen": int}
         """
@@ -85,6 +87,11 @@ class AirtableEventStore:
                 # Clear Possibly Cancelled if it was truthy
                 if existing_fields.get("Possibly Cancelled"):
                     update_dict["Possibly Cancelled"] = False
+
+                # Persist a late-discovered duplicate link, but never clobber
+                # a stored value — it may have been reviewed or edited by a human.
+                if event.possible_duplicate_of and not existing_fields.get("Possible Duplicate Of"):
+                    update_dict["Possible Duplicate Of"] = event.possible_duplicate_of
 
                 # Check for content changes
                 new_hash = content_hash(event)
