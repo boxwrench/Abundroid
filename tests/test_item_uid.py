@@ -70,6 +70,20 @@ def test_metadata_fallback_uses_publisher_title_date_and_source():
     )
 
 
+def test_event_fallback_uses_scheduled_date_when_publication_date_is_missing():
+    first = Item(
+        title='Weekly Meeting',
+        publisher='Publisher',
+        kind='event',
+        scheduled_start=datetime(2026, 8, 1, 10, 0),
+        source_url='https://example.com/calendar',
+    )
+
+    assert compute_item_uid(first) != compute_item_uid(
+        replace(first, scheduled_start=datetime(2026, 8, 8, 10, 0))
+    )
+
+
 def test_content_hash_ignores_editorial_and_bookkeeping_fields():
     item = Item(
         title='Post',

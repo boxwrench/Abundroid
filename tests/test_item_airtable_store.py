@@ -150,3 +150,21 @@ def test_set_possible_duplicates_updates_only_existing_records():
     assert table.update_calls == [("rec1", {"Possible Duplicate Of": "guid:other:one"})]
     assert table.records[0]["fields"]["Last Seen"] == "2026-06-01"
     assert table.records[0]["fields"]["Title"] == "Reviewed title"
+
+
+def test_upsert_does_not_replace_reviewed_duplicate_link():
+    table = FakeTable(
+        [{
+            "id": "rec1",
+            "fields": {
+                "Item UID": "guid:feed:one",
+                "Source Hash": "hash-one",
+                "Possible Duplicate Of": "reviewed-match",
+            },
+        }]
+    )
+
+    AirtableItemStore(table).upsert([item(possible_duplicate_of="new-suggestion")])
+
+    assert table.records[0]["fields"]["Possible Duplicate Of"] == "reviewed-match"
+    assert "Possible Duplicate Of" not in table.update_calls[0][1]

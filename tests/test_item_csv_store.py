@@ -121,3 +121,13 @@ def test_set_possible_duplicates_only_changes_duplicate_field(tmp_path):
     assert {key: value for key, value in after.items() if key != "possible_duplicate_of"} == {
         key: value for key, value in before.items() if key != "possible_duplicate_of"
     }
+
+
+def test_upsert_does_not_replace_reviewed_duplicate_link(tmp_path):
+    path = tmp_path / "items.csv"
+    store = CsvItemStore(path)
+    store.upsert([item(possible_duplicate_of="reviewed-match")])
+
+    store.upsert([item(possible_duplicate_of="new-suggestion")])
+
+    assert read_rows(path)[0]["possible_duplicate_of"] == "reviewed-match"

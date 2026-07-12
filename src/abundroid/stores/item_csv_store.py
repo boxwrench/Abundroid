@@ -152,7 +152,7 @@ class CsvItemStore:
                     row["changed"] = "yes"
                 elif incoming_hash and not stored_hash:
                     row["source_hash"] = incoming_hash
-                if item.possible_duplicate_of:
+                if item.possible_duplicate_of and not row.get("possible_duplicate_of"):
                     row["possible_duplicate_of"] = item.possible_duplicate_of
                 seen_count += 1
             else:

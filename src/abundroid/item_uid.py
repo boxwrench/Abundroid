@@ -35,12 +35,13 @@ def compute_item_uid(item: Item) -> str:
     if item.canonical_url.strip():
         return f'url:{_normalize_url_safely(item.canonical_url)}'
 
-    published_date = item.published_at.date().isoformat() if item.published_at else ''
+    identity_date = item.published_at or item.scheduled_start
+    date_value = identity_date.date().isoformat() if identity_date else ''
     identity = '|'.join(
         [
             _normalize_text(item.publisher),
             _normalize_text(item.title),
-            published_date,
+            date_value,
             _normalize_url_safely(item.source_url),
         ]
     )

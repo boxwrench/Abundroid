@@ -172,7 +172,7 @@ class AirtableItemStore:
                     updates.update({"Source Hash": incoming_hash, "Changed": True})
                 elif incoming_hash and not stored_hash:
                     updates["Source Hash"] = incoming_hash
-                if item.possible_duplicate_of:
+                if item.possible_duplicate_of and not current_fields.get("Possible Duplicate Of"):
                     updates["Possible Duplicate Of"] = item.possible_duplicate_of
                 self.table.update(record["id"], updates)
                 seen_count += 1

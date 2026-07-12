@@ -136,6 +136,129 @@ def run_collect(args):
     return 0
 
 
+def run_migrate_events(args):
+    """Run the event migration pipeline."""
+    # Determine mode: Airtable or CSV
+    airtable_key = os.environ.get("AIRTABLE_API_KEY", "").strip()
+    airtable_base = os.environ.get("AIRTABLE_BASE_ID", "").strip()
+
+    if bool(airtable_key) != bool(airtable_base):
+        print(
+            "Error: AIRTABLE_API_KEY and AIRTABLE_BASE_ID must both be set for Airtable migration",
+            file=sys.stderr,
+        )
+        return 1
+
+    if airtable_key and airtable_base:
+        # Airtable mode
+        try:
+            import pyairtable
+            api = pyairtable.Api(airtable_key)
+            events_table_name = os.environ.get("AIRTABLE_EVENTS_TABLE", "Events")
+            items_table_name = os.environ.get("AIRTABLE_ITEMS_TABLE", "Items")
+
+            events_table = api.table(airtable_base, events_table_name)
+            items_table = api.table(airtable_base, items_table_name)
+
+            # Fetch events
+            records = events_table.all()
+        except Exception as e:
+            print(f"Error connecting to Airtable: {e}", file=sys.stderr)
+            return 1
+
+        # Extract rows from records
+        rows = []
+        for record in records:
+            row_dict = dict(record.get("fields", {}))
+            rows.append(row_dict)
+
+        from abundroid.event_migration import AIRTABLE_TO_LEGACY_MAP, normalize_row, migrate_events
+        normalized_rows = [normalize_row(r, AIRTABLE_TO_LEGACY_MAP) for r in rows]
+
+        converted_items, warnings = migrate_events(normalized_rows)
+
+        # Print warnings
+        for warning in warnings:
+            print(f"Warning [row {warning.row_index}]: {warning.message}", file=sys.stderr)
+
+        # Count skipped
+        skipped = len(rows) - len(converted_items)
+
+        if args.apply:
+            try:
+                from abundroid.stores.item_airtable_store import AirtableItemStore
+                store = AirtableItemStore(items_table)
+                result = store.upsert(converted_items)
+                new_count = result.get("new", 0)
+                seen_count = result.get("seen", 0)
+            except Exception as e:
+                print(f"Error writing to Airtable Items table: {e}", file=sys.stderr)
+                return 1
+            print(f"Converted: {len(converted_items)}")
+            print(f"Skipped: {skipped}")
+            print(f"New: {new_count}")
+            print(f"Seen: {seen_count}")
+        else:
+            print(f"Converted: {len(converted_items)}")
+            print(f"Skipped: {skipped}")
+            print(f"Warnings: {len(warnings)}")
+
+        return 0
+
+    else:
+        # CSV mode
+        if not args.events:
+            print("Error: --events path is required in CSV mode", file=sys.stderr)
+            return 1
+        if not args.items:
+            print("Error: --items path is required in CSV mode", file=sys.stderr)
+            return 1
+        if not os.path.exists(args.events):
+            print(f"Error: legacy events file not found: {args.events}", file=sys.stderr)
+            return 1
+
+        import csv
+        try:
+            with open(args.events, "r", encoding="utf-8") as f:
+                rows = list(csv.DictReader(f))
+        except Exception as e:
+            print(f"Error reading legacy events file: {e}", file=sys.stderr)
+            return 1
+
+        from abundroid.event_migration import CSV_TO_LEGACY_MAP, normalize_row, migrate_events
+        normalized_rows = [normalize_row(r, CSV_TO_LEGACY_MAP) for r in rows]
+
+        converted_items, warnings = migrate_events(normalized_rows)
+
+        # Print warnings
+        for warning in warnings:
+            print(f"Warning [row {warning.row_index}]: {warning.message}", file=sys.stderr)
+
+        # Count skipped
+        skipped = len(rows) - len(converted_items)
+
+        if args.apply:
+            try:
+                from abundroid.stores.item_csv_store import CsvItemStore
+                store = CsvItemStore(args.items)
+                result = store.upsert(converted_items)
+                new_count = result.get("new", 0)
+                seen_count = result.get("seen", 0)
+            except Exception as e:
+                print(f"Error writing to Items CSV file: {e}", file=sys.stderr)
+                return 1
+            print(f"Converted: {len(converted_items)}")
+            print(f"Skipped: {skipped}")
+            print(f"New: {new_count}")
+            print(f"Seen: {seen_count}")
+        else:
+            print(f"Converted: {len(converted_items)}")
+            print(f"Skipped: {skipped}")
+            print(f"Warnings: {len(warnings)}")
+
+        return 0
+
+
 def main(argv=None):
     """
     Main CLI entry point.
@@ -195,10 +318,30 @@ def main(argv=None):
         help='Fetch and parse Items without writing them',
     )
 
+    migrate_parser = subparsers.add_parser(
+        "migrate-events", help="Migrate legacy Events to unified Items"
+    )
+    migrate_parser.add_argument(
+        "--events",
+        help="Path to legacy events CSV",
+    )
+    migrate_parser.add_argument(
+        "--items",
+        help="Path to output unified items CSV",
+    )
+    migrate_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Write migrated records to target store (otherwise dry run)",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == 'collect':
         return run_collect(args)
+
+    if args.command == 'migrate-events':
+        return run_migrate_events(args)
 
     if args.command != "run":
         parser.print_help()

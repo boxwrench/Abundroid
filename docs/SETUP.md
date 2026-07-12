@@ -225,9 +225,31 @@ and write the **Events** table. Do not rename those fields, remove the table,
 or point `AIRTABLE_EVENTS_TABLE` at **Items**.
 
 The unified `abundroid collect` command reads **Sources** and writes **Items**.
-Running both during migration is supported. A future migration tool will copy
-appropriate Events into Items with `Kind = event`; do not copy records by
-hand unless you also preserve their identity fields.
+Running both during migration is supported.
+
+### Migrating Legacy Events to Unified Items
+
+The `migrate-events` subcommand copies legacy Event records into unified Items with `kind = event`:
+
+```powershell
+# CSV mode (local files)
+abundroid migrate-events --events data/events.csv --items output/items.csv
+
+# Write the migrated records to the target CSV store (apply)
+abundroid migrate-events --events data/events.csv --items output/items.csv --apply
+```
+
+If `AIRTABLE_API_KEY` and `AIRTABLE_BASE_ID` are set in your environment, the migration command operates on Airtable instead:
+
+```powershell
+# Airtable preview mode
+abundroid migrate-events
+
+# Airtable apply mode
+abundroid migrate-events --apply
+```
+
+Without `--apply`, the tool runs in preview mode, performing no writes but displaying counts and warnings (e.g. invalid dates, missing required fields, unresolved duplicate links). With `--apply`, the converted Items are upserted into the target store. The migration is idempotent; running apply again does not overwrite reviewer edits or create duplicate Items.
 
 ## Troubleshooting
 

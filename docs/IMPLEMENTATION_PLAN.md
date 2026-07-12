@@ -111,9 +111,7 @@ possible.
 
 ### Milestone 4 - Migration and Admin Interface
 
-- Migrate appropriate legacy Event records into Items with `kind = event`.
-  Next implementation batch: [Events-to-Items Migration
-  Plan](EVENTS-TO-ITEMS-MIGRATION-PLAN.md).
+- [Done] Migrate appropriate legacy Event records into Items with `kind = event`.
 - Validate and configure the documented Airtable Interface in a live base.
 - Add source discovery suggestions from an organization homepage.
 

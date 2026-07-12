@@ -52,9 +52,9 @@ below).
 ## Phase 3 - Unified Published Items (in progress)
 
 **Implemented:** the RSS/Atom Item model, Source model, stable identity,
-topic tagging, cross-run duplicate flags, CSV/Airtable batch stores, and the
-`abundroid collect` command. **Still required for phase exit:** live Airtable
-validation, migration tooling, and operator-interface setup.
+topic tagging, cross-run duplicate flags, CSV/Airtable batch stores, the
+`abundroid collect` command, and legacy Event migration tooling. **Still required for phase exit:** live Airtable
+validation and operator-interface setup.
 
 - Add an `Item` model with `kind`, publisher, canonical URL, source item ID,
   publication date, author, summary, topics, and optional scheduled-event
@@ -76,10 +76,6 @@ validation, migration tooling, and operator-interface setup.
 **Exit criteria:** a staff member can approve an organization and source in
 Airtable, run ingestion, review new RSS items, correct topics or summaries, and
 rerun without duplicate records.
-
-**Next implementation batch:** safe, preview-first legacy Event migration into
-Items. See the [Events-to-Items Migration
-Plan](EVENTS-TO-ITEMS-MIGRATION-PLAN.md).
 
 ## Phase 4 - Administration, Health, and Automation
 
