@@ -43,6 +43,24 @@ approve important changes.
   future events that disappear from full-calendar sources (iCal/JSON-LD only,
   never RSS) get flagged Possibly Cancelled, self-clearing on reappearance.
 
+### Phase 2 stabilization (before Phase 3)
+
+These are fixes to behavior already promised above, not new product scope:
+
+Implementation batch: [Phase 2 Stabilization Plan](PHASE2-STABILIZATION-PLAN.md).
+
+- Scope missing-event checks to the specific source URL, not only the organizer
+  name, so organizations with multiple calendars do not flag each other's events
+  as possibly cancelled.
+- Persist newly detected duplicate links onto previously seen events as well as
+  new events, so both rows reliably enter the re-review workflow.
+- Resolve relative JSON-LD event URLs against the source page before computing
+  event UIDs, preventing invalid identities and cross-site collisions.
+- Return a nonzero CLI exit status when any source or persistence operation
+  fails, while continuing to isolate and process the remaining sources.
+- Add regression tests for each case above. Avoid storage abstractions or broader
+  refactors unless implementing a fix demonstrates that they are necessary.
+
 ## Phase 3 — Articles, Posts, Announcements (next up)
 
 The brief's "events" always meant occurrences broadly — things the ecosystem
