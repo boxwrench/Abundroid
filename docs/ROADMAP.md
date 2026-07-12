@@ -77,6 +77,10 @@ validation, migration tooling, and operator-interface setup.
 Airtable, run ingestion, review new RSS items, correct topics or summaries, and
 rerun without duplicate records.
 
+**Next implementation batch:** safe, preview-first legacy Event migration into
+Items. See the [Events-to-Items Migration
+Plan](EVENTS-TO-ITEMS-MIGRATION-PLAN.md).
+
 ## Phase 4 - Administration, Health, and Automation
 
 - Airtable Organizations interface with Add, Edit, Pause, Archive, Restore,
