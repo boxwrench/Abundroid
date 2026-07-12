@@ -121,4 +121,3 @@ The batch is complete when all tests pass, every acceptance criterion has a
 regression test, and no files outside the listed implementation/test files and
 roadmap documentation changed. Remove the local `.review-tmp` directory after
 testing; do not modify the pre-existing untracked `.claude/` directory.
-
