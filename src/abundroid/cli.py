@@ -59,7 +59,7 @@ def main(argv=None):
     """
     Main CLI entry point.
 
-    Returns 0 on success.
+    Returns 0 if all organizations succeeded, 1 if any failed.
     """
     # Load .env file if present
     load_env()
