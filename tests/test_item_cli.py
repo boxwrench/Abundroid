@@ -4,6 +4,7 @@ import csv
 from unittest.mock import patch
 
 from abundroid.cli import main
+from tests.test_item_airtable_store import FakeTable
 
 
 RSS = '''<?xml version='1.0'?>
@@ -14,6 +15,17 @@ RSS = '''<?xml version='1.0'?>
 <pubDate>Thu, 09 Jul 2026 17:00:00 GMT</pubDate>
 <description>New zoning legislation.</description>
 </item></channel></rss>'''
+
+
+class FakeAirtableApi:
+    def __init__(self, key):
+        self.key = key
+        self.tables = {}
+
+    def table(self, base_id, table_name):
+        if table_name not in self.tables:
+            self.tables[table_name] = FakeTable()
+        return self.tables[table_name]
 
 
 def _sources_file(tmp_path):
@@ -145,7 +157,6 @@ def test_collect_saves_source_runs_to_airtable(monkeypatch):
     monkeypatch.setenv('AIRTABLE_ITEMS_TABLE', 'Items')
     monkeypatch.setenv('AIRTABLE_SOURCE_RUNS_TABLE', 'Runs')
 
-    from tests.test_migration_cli import FakeAirtableApi
     fake_api = FakeAirtableApi('key')
 
     # Setup mock active source in fake api
@@ -185,6 +196,20 @@ def test_collect_saves_source_runs_to_airtable(monkeypatch):
     assert runs[0].items_found == 1
 
 
+def test_collect_reports_airtable_setup_errors_without_a_traceback(monkeypatch, capsys):
+    monkeypatch.setenv('AIRTABLE_API_KEY', 'key')
+    monkeypatch.setenv('AIRTABLE_BASE_ID', 'base')
+    fake_api = FakeAirtableApi('key')
+
+    with patch('pyairtable.Api', return_value=fake_api), \
+         patch.object(fake_api.table('base', 'Organizations'), 'all',
+                      side_effect=RuntimeError('table not found')):
+        result = main(['collect'])
+
+    assert result == 1
+    assert 'Error loading collection configuration: table not found' in capsys.readouterr().err
+
+
 def test_collect_fails_when_saving_runs_fails(tmp_path, monkeypatch, capsys):
     _clear_airtable(monkeypatch)
     sources = _sources_file(tmp_path)
@@ -201,3 +226,25 @@ def test_collect_fails_when_saving_runs_fails(tmp_path, monkeypatch, capsys):
 
     assert result == 1
     assert "Error saving source runs: Disk Full" in capsys.readouterr().err
+
+
+def test_help_exposes_only_the_collect_command(capsys):
+    assert main([]) == 0
+
+    output = capsys.readouterr().out
+    assert "{collect}" in output
+
+
+def test_module_is_runnable_via_python_dash_m():
+    import subprocess
+    import sys
+
+    process = subprocess.run(
+        [sys.executable, "-m", "abundroid.cli"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert process.returncode == 0
+    assert "usage" in process.stdout.lower()

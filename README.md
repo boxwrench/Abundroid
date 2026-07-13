@@ -96,15 +96,10 @@ deployment and validation. That validation is the sole current milestone.
 ## Setup
 
 The [setup guide](docs/SETUP.md) separates the one-time technical deployment
-from the no-terminal operator workflow. In brief:
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -e '.[dev]'
-python -m pytest
-abundroid collect
-```
+from the no-terminal operator workflow. Follow its dedicated
+[Windows](docs/SETUP.md#windows-11) or
+[Ubuntu](docs/SETUP.md#ubuntu-2404) subsection; do not mix their `python` and
+virtual-environment commands.
 
 Python 3.11 or newer is required. Without Airtable credentials, Abundroid uses
 CSV files so the ingestion path can be tested locally. The example Source is
@@ -118,9 +113,5 @@ disabled to avoid unexpected network requests; replace its URL and set
 - [Unified Items implementation plan](docs/IMPLEMENTATION_PLAN.md)
 - [Product roadmap](docs/ROADMAP.md)
 
-Files under `archive/` are historical planning briefs and are not current
-product documentation.
-
 For developers, adapters live in `src/abundroid/adapters/`, persistence in
-`src/abundroid/stores/`, and orchestration in `src/abundroid/pipeline.py` and
-the new Items pipeline modules.
+`src/abundroid/stores/`, and orchestration in `src/abundroid/item_pipeline.py`.

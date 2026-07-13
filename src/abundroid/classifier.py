@@ -3,7 +3,7 @@
 import re
 import csv
 from pathlib import Path
-from abundroid.models import Event, Topic
+from abundroid.models import Topic
 
 
 def split_terms(s: str | None) -> list[str]:
@@ -25,54 +25,6 @@ def split_terms(s: str | None) -> list[str]:
         if term:
             result.append(term)
     return result
-
-
-def tag_events(events: list[Event], topics: list[Topic]) -> None:
-    """
-    Tag events with matching topics.
-
-    For each event, match against title + description combined.
-    A term matches if it appears on word boundaries (case-insensitive).
-    Exclusion terms veto the topic if they match.
-    Only active topics with keywords are considered.
-    Topics are assigned in order, without duplicates.
-    """
-    for event in events:
-        # Combined text: title + description
-        text = (event.title or "") + " " + (event.description or "")
-
-        for topic in topics:
-            # Skip inactive topics
-            if not topic.active:
-                continue
-
-            # Skip topics with no keywords
-            if not topic.keywords:
-                continue
-
-            # Check exclusions first
-            excluded = False
-            for exclusion in topic.exclusions:
-                pattern = r"(?<!\w)" + re.escape(exclusion) + r"(?!\w)"
-                if re.search(pattern, text, re.IGNORECASE):
-                    excluded = True
-                    break
-
-            if excluded:
-                continue
-
-            # Check if any keyword matches
-            matched = False
-            for keyword in topic.keywords:
-                pattern = r"(?<!\w)" + re.escape(keyword) + r"(?!\w)"
-                if re.search(pattern, text, re.IGNORECASE):
-                    matched = True
-                    break
-
-            if matched:
-                # Assign topic (no duplicates)
-                if topic.name not in event.topics:
-                    event.topics.append(topic.name)
 
 
 def tag_items(items, topics: list[Topic]) -> None:

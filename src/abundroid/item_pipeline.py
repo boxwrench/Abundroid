@@ -8,7 +8,7 @@ from abundroid.adapters import rss
 from abundroid.classifier import tag_items
 from abundroid.item_dedupe import flag_possible_item_duplicates
 from abundroid.item_uid import compute_item_uid, item_content_hash
-from abundroid.pipeline import default_fetch
+from abundroid.fetch import default_fetch
 
 
 ITEM_ADAPTERS = {'rss': rss.parse_items}

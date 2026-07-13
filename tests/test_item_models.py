@@ -1,4 +1,4 @@
-from abundroid.models import Event, Item, Organization, Source
+from abundroid.models import Item, Source
 
 
 def test_source_defaults_support_a_simple_operator_configuration():
@@ -24,11 +24,3 @@ def test_item_defaults_start_in_review_without_shared_topic_lists():
     assert first.kind == 'other'
     assert first.changed is False
     assert second.topics == []
-
-
-def test_legacy_models_remain_constructible():
-    organization = Organization('Org', 'https://example.com/events', 'rss')
-    event = Event('Meetup', organization.name)
-
-    assert organization.events_url == 'https://example.com/events'
-    assert event.organizer == 'Org'

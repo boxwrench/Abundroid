@@ -7,25 +7,13 @@ from datetime import datetime
 
 
 @dataclass
-class Organization:
-    """A monitored source, mirroring one row of the Organizations table."""
-
-    name: str
-    events_url: str
-    source_type: str  # "ical" | "rss" | "jsonld" (more types in later phases)
-    website: str = ""
-    active: bool = True
-    notes: str = ""
-
-
-@dataclass
 class Source:
     '''One monitored endpoint belonging to an organization.'''
 
     organization: str
     name: str
     url: str
-    format: str  # rss | jsonld | html | ical
+    format: str  # rss
     default_kind: str = 'other'
     active: bool = True
     notes: str = ''
@@ -58,27 +46,9 @@ class Item:
     changed: bool = False
     possible_duplicate_of: str = ''
 
-
-@dataclass
-class Event:
-    """One normalized event, before or after review."""
-
-    title: str
-    organizer: str
-    url: str = ""  # registration / event page URL
-    start: datetime | None = None
-    end: datetime | None = None
-    location: str = ""
-    description: str = ""
-    source_url: str = ""  # the feed or page this was pulled from
-    uid: str = ""  # deterministic identity, computed by abundroid.uid
-    topics: list[str] = field(default_factory=list)  # bot-suggested topic names
-    possible_duplicate_of: str = ""  # uid of a suspected cross-org twin
-
-
 @dataclass
 class Topic:
-    """One row of the Topics table — a tagging rule, not just a label."""
+    """One row of the Topics table: a tagging rule, not just a label."""
 
     name: str
     keywords: list[str] = field(default_factory=list)
@@ -108,28 +78,17 @@ class SourceRun:
             raise ValueError("Timestamps must be timezone-aware.")
         if self.finish_time < self.start_time:
             raise ValueError("Finish time cannot be earlier than start time.")
-        if self.result not in {"success", "failure", "paused"}:
-            raise ValueError("Result must be success, failure, or paused.")
+        if self.result not in {"success", "failure"}:
+            raise ValueError("Result must be success or failure.")
         if min(self.items_found, self.items_new, self.items_seen) < 0:
             raise ValueError("Item counts cannot be negative.")
         if self.result == "success" and self.error:
             raise ValueError("Successful runs cannot contain an error.")
 
-    def derive_health(self, active: bool = True) -> str:
-        """Derive source health status based on this run and active flag."""
-        if not active or self.result == "paused":
-            return "Paused"
+    def derive_health(self) -> str:
+        """Translate an attempted run into its operator-facing result."""
         if self.result == "failure":
             return "Needs attention"
         if self.items_found == 0:
             return "No recent items"
         return "Working"
-
-
-def derive_source_health(source: Source, latest_run: SourceRun | None) -> str:
-    """Derive health status for a Source given its active state and latest run."""
-    if not source.active:
-        return "Paused"
-    if latest_run is None:
-        return "Paused"
-    return latest_run.derive_health(active=True)

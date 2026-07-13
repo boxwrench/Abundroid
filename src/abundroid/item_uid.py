@@ -4,9 +4,32 @@ from __future__ import annotations
 
 import hashlib
 import re
+from urllib.parse import parse_qs, urlencode, urlparse
 
 from abundroid.models import Item
-from abundroid.uid import normalize_url
+
+
+def normalize_url(url: str) -> str:
+    """Normalize a URL for stable identity while dropping tracking parameters."""
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    netloc = parsed.hostname.lower() if parsed.hostname else ""
+    if parsed.port and not (
+        (scheme == "http" and parsed.port == 80)
+        or (scheme == "https" and parsed.port == 443)
+    ):
+        netloc += f":{parsed.port}"
+
+    path = parsed.path.rstrip("/") if parsed.path not in ("", "/") else ""
+    query = parse_qs(parsed.query, keep_blank_values=True)
+    filtered = {
+        key: values[0] if values else ""
+        for key, values in query.items()
+        if not key.startswith("utm_") and key not in {"fbclid", "gclid"}
+    }
+    normalized = f"{scheme}://{netloc}{path}"
+    sorted_query = urlencode(sorted(filtered.items()))
+    return f"{normalized}?{sorted_query}" if sorted_query else normalized
 
 
 def _normalize_text(value: str) -> str:

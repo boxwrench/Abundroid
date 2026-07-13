@@ -1,147 +1,85 @@
 # Unified Items Implementation Plan
 
-This plan converts the calendar-oriented prototype into a publication-monitoring
-system without breaking existing Event ingestion during the transition.
+## Current Objective
 
-## Current Milestone
+Deploy and validate the smallest real Airtable RSS workflow. No new adapter,
+enrichment subsystem, scheduler, or public output is current work. The milestone
+closes only after real reruns, reviewer-edit preservation, failure visibility,
+and the nontechnical operator workflow have been exercised in one base.
 
-Deploy and validate the smallest real Airtable RSS workflow. No new adapter or
-enrichment subsystem is current work. Phase 3 closes only after real reruns,
-reviewer-edit preservation, failure visibility, and the nontechnical operator
-workflow have been exercised in one base.
-
-## Target Data Model
+## Data Model
 
 ### Organization
 
-One durable record per organization.
-
-- `name`, `website`, `category`, `priority`, `active`, `stage`, `notes`
-- `stage`: `Approved`, `Watchlist`, `Suggested`, or `Archived`
-- Removing an organization from monitoring means archiving it, not deleting its
-  historical items.
+One durable publisher record with `name`, `website`, `category`, `priority`,
+`active`, `stage`, and `notes`. Stopping monitoring means archiving the record,
+not deleting collected history.
 
 ### Source
 
-One record per monitored endpoint, linked to an Organization.
-
-- `organization`, `name`, `url`, `format`, `default_kind`, `active`, `notes`
-- `format`: `rss`, `jsonld`, `html`, or `ical`
-- `default_kind`: `article`, `post`, `update`, `announcement`, `report`,
-  `event`, or `other`
-- Health and last-run fields are bookkeeping, not configuration.
+One monitored endpoint linked to an Organization, with `name`, `url`, `format`,
+`default_kind`, `active`, and `notes`. The deployed format selector contains
+only `rss`.
 
 ### Item
 
-One reviewable occurrence in the monitored ecosystem.
+One reviewable publication with:
 
 - Identity: `uid`, `source_item_id`, `canonical_url`, `source_url`
 - Editorial fields: `title`, `publisher`, `kind`, `published_at`, `author`,
   `summary`, `topics`, `status`, `reviewer_notes`
-- Optional event fields: `scheduled_start`, `scheduled_end`, `location`
+- Optional scheduled fields: `scheduled_start`, `scheduled_end`, `location`
 - Bookkeeping: `source_hash`, `first_seen`, `last_seen`, `changed`,
   `possible_duplicate_of`
 
-The source snapshot/hash and reviewer-edited fields must remain separable so a
-source refresh cannot overwrite approved copy.
+### Source Run
 
-## Identity and Duplicate Rules
+One active Source attempt with timestamps, result, Item counts, optional HTTP
+status, and an actionable error.
 
-Identity priority:
+## Implemented Collection Contract
 
-1. A stable source-native ID namespaced by source, such as an RSS/Atom GUID.
-2. A normalized canonical URL with tracking parameters removed.
-3. A deterministic hash of publisher, normalized title, publication date, and
-   source.
+1. Load active RSS Sources belonging to approved active Organizations.
+2. Fetch each Source independently.
+3. Parse candidates and compute stable identity and source-content hashes.
+4. Suggest Topics and compare candidates with recently persisted Items.
+5. Batch-upsert Items without replacing reviewer-owned fields.
+6. Write one Source Run per attempted Source.
+7. Return a failing command status if any Source fails, after preserving work
+   from successful Sources.
 
-Near-duplicate detection runs against persisted recent items, not only the
-current fetch batch. The implemented slice considers normalized title,
-canonical URL, and publication proximity. Publisher and summary signals remain
-future tuning work. Duplicate matches are flagged for review and never deleted
+Identity priority is source-native ID, canonical URL, then a deterministic
+metadata fallback. Possible duplicates are flagged for review and never deleted
 automatically.
 
-## Ingestion Contract
+## Live Deployment Tasks
 
-Adapters return `list[Item]`. Retrieval format and item kind are independent:
-an RSS feed may contain articles or announcements, while JSON-LD may contain
-articles or scheduled events.
-
-The item pipeline performs:
-
-1. Fetch each active Source with failure isolation.
-2. Parse candidates and compute stable identity.
-3. Tag topics and compare candidates with persisted recent items.
-4. Upsert the complete batch once, avoiding one full table scan per source.
-5. Record per-source results for health and operator visibility.
-
-Legacy `run_pipeline`, `Event`, and the Events table remain available until the
-Items path reaches parity and every known deployment passes the roadmap's
-observable retirement gate.
-
-## Airtable Administration
-
-Daily operators use an Airtable Interface rather than raw tables where
-possible.
-
-- **Organizations:** Add Organization form, Edit, Pause, Archive, Restore.
-- **Sources:** related list on each organization; technical `format` may be
-  auto-detected or set by an advanced administrator.
-- **Review Queue:** all Items with `Status = Needs Review`.
-- **Filtered queues:** Articles, Updates, Announcements, Reports, Events.
-- **Source Health:** grouped by `Working`, `No recent items`, `Needs attention`,
-  and `Paused`.
-- **Permanent Delete:** administrator-only, confirmed, and never cascades to
-  historical Items by default.
-
-## Delivery Sequence
-
-### Milestone 1 - RSS Items Vertical Slice (implemented)
-
-- Introduce `Source` and `Item` models.
-- Parse RSS/Atom GUID, link, author, published timestamp, and bounded summary.
-- Add stable Item UID and content hash functions.
-- Add CSV Item storage and regression tests.
-- Keep existing Event tests passing.
-
-### Milestone 2 - Airtable Items (implementation complete; live validation pending)
-
-- Add Sources and Items schema documentation.
-- Load approved Sources linked to Organizations.
-- Batch-upsert Items while preserving human edits.
-- Add Review Queue and filtered-view setup instructions.
-
-### Milestone 3 - Persistent Deduplication and Health (complete)
-
-- [Done] Query recent stored Items for duplicate candidates.
-- [Done] Store duplicate relationships consistently for new and existing records.
-- [Done] Write Source Run records and update plain-language health.
-- [Done] Return a failing process status when a scheduled run is systemically broken.
-
-### Milestone 4 - Migration and Admin Interface
-
-- [Done] Migrate appropriate legacy Event records into Items with `kind = event`.
-- Validate and configure the documented Airtable Interface in a live base.
-- [Deferred] Add source discovery only if manual Source setup repeatedly blocks
-  normal operators or requires material technical effort.
-
-### Milestone 5 - Digest and Enrichment
-
-- Generate a reviewable digest only for a named owner, audience, and cadence.
-- Add article JSON-LD or grounded HTML extraction only for a high-priority
-  publisher that cannot be covered by RSS.
-- Add optional AI only where measured review data justifies it.
+- [ ] Create the five documented Airtable tables and fields.
+- [ ] Create one approved active Organization with one working RSS Source.
+- [ ] Run a read-only preview.
+- [ ] Run collection twice and verify Item idempotency.
+- [ ] Edit reviewer-owned fields and verify they survive a rerun.
+- [ ] Exercise a broken, inactive, and unlinked Source.
+- [ ] Build and publish the minimum operator Interface.
+- [ ] Have a non-developer complete the operator workflow.
+- [ ] Record workarounds and revise the product only where validation requires.
 
 ## Acceptance Criteria
 
-These are phase-exit criteria, not claims that every item is complete today.
-Milestone headings above identify the remaining work.
-
-- A nontechnical operator can add, pause, archive, and restore organizations.
-- One organization can own multiple Sources without duplicate organization
-  records.
+- A nontechnical operator can add, edit, pause, archive, and restore an
+  Organization.
+- One Organization can own multiple Sources.
 - Re-running an unchanged feed creates zero new Items.
-- Feed GUID and canonical URL changes behave predictably and are tested.
 - Source changes do not overwrite human-edited fields.
-- Duplicate flags can be applied to records created in earlier runs.
-- One broken Source does not block other Sources and is visible in Airtable.
-- The legacy calendar path remains usable until migration is explicitly run.
+- Duplicate flags can be applied to Items created in earlier runs.
+- One broken Source does not block working Sources and is visible in Airtable.
+- Routine review requires no terminal or raw-table access.
+
+## Deferred Until Evidence Exists
+
+- Automatic Source discovery
+- Scheduled execution
+- Additional source formats
+- Network caching and retries
+- AI classification or summarization
+- Digest or public publishing output

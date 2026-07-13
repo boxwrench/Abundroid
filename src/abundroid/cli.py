@@ -5,51 +5,34 @@ import os
 import sys
 from pathlib import Path
 
-from abundroid.stores.csv_store import load_organizations as load_orgs_csv, CsvEventStore
-from abundroid.stores.airtable_store import load_organizations as load_orgs_airtable, AirtableEventStore
-from abundroid.classifier import topics_from_airtable, load_topics_csv
-from abundroid.pipeline import run_pipeline
+from abundroid.classifier import load_topics_csv, topics_from_airtable
 from abundroid.item_pipeline import run_item_pipeline
-from abundroid.stores.item_csv_store import (
-    CsvItemStore,
-    load_sources as load_sources_csv,
-)
 from abundroid.stores.item_airtable_store import (
     AirtableItemStore,
     load_sources as load_sources_airtable,
 )
+from abundroid.stores.item_csv_store import (
+    CsvItemStore,
+    load_sources as load_sources_csv,
+)
 
 
 def load_env(path=".env"):
-    """
-    Load environment variables from a .env file.
-
-    Parses KEY=VALUE lines (skip blanks and # comments).
-    Sets each via os.environ.setdefault.
-    """
+    """Load simple KEY=VALUE entries without overriding the process environment."""
     if not os.path.exists(path):
         return
 
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
+    with open(path, "r", encoding="utf-8") as env_file:
+        for line in env_file:
             line = line.strip()
-            # Skip blank lines and comments
-            if not line or line.startswith("#"):
+            if not line or line.startswith("#") or "=" not in line:
                 continue
-
-            # Parse KEY=VALUE
-            if "=" not in line:
-                continue
-
             key, value = line.split("=", 1)
-            key = key.strip()
-            value = value.strip()
-
-            os.environ.setdefault(key, value)
+            os.environ.setdefault(key.strip(), value.strip())
 
 
 def _airtable_credentials():
-    """Return the configured Airtable credential pair or the CSV-mode pair."""
+    """Return a complete Airtable credential pair or the CSV-mode pair."""
     key = os.environ.get("AIRTABLE_API_KEY", "").strip()
     base_id = os.environ.get("AIRTABLE_BASE_ID", "").strip()
     if bool(key) != bool(base_id):
@@ -59,410 +42,144 @@ def _airtable_credentials():
     return key, base_id
 
 
-class DryRunStore:
-    """Wrapper store that prints events instead of persisting."""
-
-    def __init__(self):
-        """Initialize."""
-        pass
-
-    def upsert(self, events):
-        """Print events and return fake counts."""
-        for event in events:
-            # Print: title, start, url, uid
-            start_str = event.start.isoformat() if event.start else "No date"
-            print(f"  {event.title} ({start_str}) - {event.url} [{event.uid}]")
-        return {"new": len(events), "seen": 0}
-
-
 class DryRunItemStore:
-    '''Print collected Items instead of persisting them.'''
+    """Print collected Items instead of persisting them."""
 
     def recent_items(self, since=None):
         return []
 
     def upsert(self, items):
         for item in items:
-            published = item.published_at.isoformat() if item.published_at else 'No date'
+            published = item.published_at.isoformat() if item.published_at else "No date"
             print(
-                f'  [{item.kind}] {item.title} ({published}) - '
-                f'{item.canonical_url} [{item.uid}]'
+                f"  [{item.kind}] {item.title} ({published}) - "
+                f"{item.canonical_url} [{item.uid}]"
             )
-        return {'new': len(items), 'seen': 0}
+        return {"new": len(items), "seen": 0}
 
 
 def _load_airtable_topics(api, base_id):
-    try:
-        topics_table = api.table(
-            base_id,
-            os.environ.get('AIRTABLE_TOPICS_TABLE', 'Topics'),
-        )
-        return topics_from_airtable(topics_table)
-    except Exception as exc:
-        print(f'Warning: could not load Topics table ({exc}); tagging skipped')
-        return []
+    table = api.table(base_id, os.environ.get("AIRTABLE_TOPICS_TABLE", "Topics"))
+    return topics_from_airtable(table)
 
 
 def run_collect(args):
-    '''Run the unified published-items pipeline.'''
+    """Run the published-items pipeline."""
     try:
         airtable_key, airtable_base = _airtable_credentials()
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
-    if airtable_key and airtable_base:
-        import pyairtable
+    try:
+        if airtable_key:
+            import pyairtable
 
-        api = pyairtable.Api(airtable_key)
-        orgs_table = api.table(
-            airtable_base,
-            os.environ.get('AIRTABLE_ORGS_TABLE', 'Organizations'),
-        )
-        sources_table = api.table(
-            airtable_base,
-            os.environ.get('AIRTABLE_SOURCES_TABLE', 'Sources'),
-        )
-        items_table = api.table(
-            airtable_base,
-            os.environ.get('AIRTABLE_ITEMS_TABLE', 'Items'),
-        )
-        sources = load_sources_airtable(sources_table, orgs_table)
-        topics = _load_airtable_topics(api, airtable_base)
-        store = DryRunItemStore() if args.dry_run else AirtableItemStore(items_table)
-    else:
-        sources = load_sources_csv(args.sources)
-        topics = load_topics_csv(args.topics) if os.path.exists(args.topics) else []
-        store = DryRunItemStore() if args.dry_run else CsvItemStore(args.out)
+            api = pyairtable.Api(airtable_key)
+            organizations = api.table(
+                airtable_base,
+                os.environ.get("AIRTABLE_ORGS_TABLE", "Organizations"),
+            )
+            source_table = api.table(
+                airtable_base,
+                os.environ.get("AIRTABLE_SOURCES_TABLE", "Sources"),
+            )
+            item_table = api.table(
+                airtable_base,
+                os.environ.get("AIRTABLE_ITEMS_TABLE", "Items"),
+            )
+            sources = load_sources_airtable(source_table, organizations)
+            topics = _load_airtable_topics(api, airtable_base)
+            item_store = (
+                DryRunItemStore() if args.dry_run else AirtableItemStore(item_table)
+            )
+        else:
+            sources = load_sources_csv(args.sources)
+            topics = load_topics_csv(args.topics) if os.path.exists(args.topics) else []
+            item_store = DryRunItemStore() if args.dry_run else CsvItemStore(args.out)
+    except Exception as exc:
+        print(f"Error loading collection configuration: {exc}", file=sys.stderr)
+        return 1
 
     source_run_store = None
     if not args.dry_run:
-        if airtable_key and airtable_base:
-            try:
-                source_runs_table = api.table(
-                    airtable_base,
-                    os.environ.get('AIRTABLE_SOURCE_RUNS_TABLE', 'Source Runs'),
-                )
-                from abundroid.stores.source_run_airtable_store import AirtableSourceRunStore
-                source_run_store = AirtableSourceRunStore(source_runs_table)
-            except Exception as e:
-                print(f"Error initializing Airtable source runs store: {e}", file=sys.stderr)
-                return 1
-        else:
-            try:
-                csv_runs_path = Path(args.out).parent / "source_runs.csv"
-                from abundroid.stores.source_run_csv_store import SourceRunCsvStore
-                source_run_store = SourceRunCsvStore(csv_runs_path)
-            except Exception as e:
-                print(f"Error initializing CSV source runs store: {e}", file=sys.stderr)
-                return 1
+        if airtable_key:
+            from abundroid.stores.source_run_airtable_store import AirtableSourceRunStore
 
-    result = run_item_pipeline(sources, store, topics=topics)
-    any_failed = False
-    for summary in result['sources']:
-        name = summary['source']
-        if summary['ok']:
-            print('{}: ok, {} found'.format(name, summary['items_found']))
+            table = api.table(
+                airtable_base,
+                os.environ.get("AIRTABLE_SOURCE_RUNS_TABLE", "Source Runs"),
+            )
+            source_run_store = AirtableSourceRunStore(table)
         else:
-            print('{}: error ({})'.format(name, summary['error']))
+            from abundroid.stores.source_run_csv_store import SourceRunCsvStore
+
+            source_run_store = SourceRunCsvStore(Path(args.out).parent / "source_runs.csv")
+
+    try:
+        result = run_item_pipeline(sources, item_store, topics=topics)
+    except Exception as exc:
+        print(f"Error running collection: {exc}", file=sys.stderr)
+        return 1
+
+    any_failed = False
+    for summary in result["sources"]:
+        if summary["ok"]:
+            print(f"{summary['source']}: ok, {summary['items_found']} found")
+        else:
+            print(f"{summary['source']}: error ({summary['error']})")
             any_failed = True
     print(
-        'Totals: {} found, {} new, {} seen'.format(
-            result['items_found'], result['new'], result['seen']
+        "Totals: {} found, {} new, {} seen".format(
+            result["items_found"], result["new"], result["seen"]
         )
     )
 
     if source_run_store is not None:
         try:
-            source_run_store.save_runs(result['source_runs'])
-        except Exception as e:
-            print(f"Error saving source runs: {e}", file=sys.stderr)
+            source_run_store.save_runs(result["source_runs"])
+        except Exception as exc:
+            print(f"Error saving source runs: {exc}", file=sys.stderr)
             return 1
 
     return 1 if any_failed else 0
 
 
-def run_migrate_events(args):
-    """Run the event migration pipeline."""
-    try:
-        airtable_key, airtable_base = _airtable_credentials()
-    except ValueError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return 1
-
-    if airtable_key and airtable_base:
-        # Airtable mode
-        try:
-            import pyairtable
-            api = pyairtable.Api(airtable_key)
-            events_table_name = os.environ.get("AIRTABLE_EVENTS_TABLE", "Events")
-            items_table_name = os.environ.get("AIRTABLE_ITEMS_TABLE", "Items")
-
-            events_table = api.table(airtable_base, events_table_name)
-            items_table = api.table(airtable_base, items_table_name)
-
-            # Fetch events
-            records = events_table.all()
-        except Exception as e:
-            print(f"Error connecting to Airtable: {e}", file=sys.stderr)
-            return 1
-
-        # Extract rows from records
-        rows = []
-        for record in records:
-            row_dict = dict(record.get("fields", {}))
-            rows.append(row_dict)
-
-        from abundroid.event_migration import AIRTABLE_TO_LEGACY_MAP, normalize_row, migrate_events
-        normalized_rows = [normalize_row(r, AIRTABLE_TO_LEGACY_MAP) for r in rows]
-
-        converted_items, warnings = migrate_events(normalized_rows)
-
-        # Print warnings
-        for warning in warnings:
-            print(f"Warning [row {warning.row_index}]: {warning.message}", file=sys.stderr)
-
-        # Count skipped
-        skipped = len(rows) - len(converted_items)
-
-        if args.apply:
-            try:
-                from abundroid.stores.item_airtable_store import AirtableItemStore
-                store = AirtableItemStore(items_table)
-                result = store.upsert(converted_items)
-                new_count = result.get("new", 0)
-                seen_count = result.get("seen", 0)
-            except Exception as e:
-                print(f"Error writing to Airtable Items table: {e}", file=sys.stderr)
-                return 1
-            print(f"Converted: {len(converted_items)}")
-            print(f"Skipped: {skipped}")
-            print(f"New: {new_count}")
-            print(f"Seen: {seen_count}")
-        else:
-            print(f"Converted: {len(converted_items)}")
-            print(f"Skipped: {skipped}")
-            print(f"Warnings: {len(warnings)}")
-
-        return 0
-
-    else:
-        # CSV mode
-        if not args.events:
-            print("Error: --events path is required in CSV mode", file=sys.stderr)
-            return 1
-        if not args.items:
-            print("Error: --items path is required in CSV mode", file=sys.stderr)
-            return 1
-        if not os.path.exists(args.events):
-            print(f"Error: legacy events file not found: {args.events}", file=sys.stderr)
-            return 1
-
-        import csv
-        try:
-            with open(args.events, "r", encoding="utf-8") as f:
-                rows = list(csv.DictReader(f))
-        except Exception as e:
-            print(f"Error reading legacy events file: {e}", file=sys.stderr)
-            return 1
-
-        from abundroid.event_migration import CSV_TO_LEGACY_MAP, normalize_row, migrate_events
-        normalized_rows = [normalize_row(r, CSV_TO_LEGACY_MAP) for r in rows]
-
-        converted_items, warnings = migrate_events(normalized_rows)
-
-        # Print warnings
-        for warning in warnings:
-            print(f"Warning [row {warning.row_index}]: {warning.message}", file=sys.stderr)
-
-        # Count skipped
-        skipped = len(rows) - len(converted_items)
-
-        if args.apply:
-            try:
-                from abundroid.stores.item_csv_store import CsvItemStore
-                store = CsvItemStore(args.items)
-                result = store.upsert(converted_items)
-                new_count = result.get("new", 0)
-                seen_count = result.get("seen", 0)
-            except Exception as e:
-                print(f"Error writing to Items CSV file: {e}", file=sys.stderr)
-                return 1
-            print(f"Converted: {len(converted_items)}")
-            print(f"Skipped: {skipped}")
-            print(f"New: {new_count}")
-            print(f"Seen: {seen_count}")
-        else:
-            print(f"Converted: {len(converted_items)}")
-            print(f"Skipped: {skipped}")
-            print(f"Warnings: {len(warnings)}")
-
-        return 0
-
-
 def main(argv=None):
-    """
-    Main CLI entry point.
-
-    Returns 0 if all organizations succeeded, 1 if any failed.
-    """
-    # Load .env file if present
+    """Parse arguments and run the requested command."""
     load_env()
 
     parser = argparse.ArgumentParser(prog="abundroid")
     subparsers = parser.add_subparsers(dest="command", help="Subcommand")
-
-    # run subcommand
-    run_parser = subparsers.add_parser("run", help="Run the event pipeline")
-    run_parser.add_argument(
-        "--orgs",
-        default="data/organizations.csv",
-        help="Path to organizations CSV (default: data/organizations.csv)"
+    collect = subparsers.add_parser(
+        "collect", help="Collect articles, posts, updates, and other published items"
     )
-    run_parser.add_argument(
+    collect.add_argument(
+        "--sources",
+        default="data/sources.csv",
+        help="Path to sources CSV (default: data/sources.csv)",
+    )
+    collect.add_argument(
         "--out",
-        default="output/events.csv",
-        help="Path to output events CSV (default: output/events.csv)"
+        default="output/items.csv",
+        help="Path to output Items CSV (default: output/items.csv)",
     )
-    run_parser.add_argument(
+    collect.add_argument(
         "--topics",
         default="data/topics.csv",
-        help="Path to topics CSV for tagging (default: data/topics.csv; skipped if absent)"
+        help="Path to topics CSV for tagging",
     )
-    run_parser.add_argument(
+    collect.add_argument(
         "--dry-run",
         action="store_true",
-        help="Fetch and parse but don't write, print events instead"
-    )
-
-    collect_parser = subparsers.add_parser(
-        'collect', help='Collect articles, posts, updates, and other published items'
-    )
-    collect_parser.add_argument(
-        '--sources',
-        default='data/sources.csv',
-        help='Path to sources CSV (default: data/sources.csv)',
-    )
-    collect_parser.add_argument(
-        '--out',
-        default='output/items.csv',
-        help='Path to output Items CSV (default: output/items.csv)',
-    )
-    collect_parser.add_argument(
-        '--topics',
-        default='data/topics.csv',
-        help='Path to topics CSV for tagging',
-    )
-    collect_parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help='Fetch and parse Items without writing them',
-    )
-
-    migrate_parser = subparsers.add_parser(
-        "migrate-events", help="Migrate legacy Events to unified Items"
-    )
-    migrate_parser.add_argument(
-        "--events",
-        help="Path to legacy events CSV",
-    )
-    migrate_parser.add_argument(
-        "--items",
-        help="Path to output unified items CSV",
-    )
-    migrate_parser.add_argument(
-        "--apply",
-        action="store_true",
-        help="Write migrated records to target store (otherwise dry run)",
+        help="Fetch and parse Items without writing them",
     )
 
     args = parser.parse_args(argv)
-
-    if args.command == 'collect':
+    if args.command == "collect":
         return run_collect(args)
-
-    if args.command == 'migrate-events':
-        return run_migrate_events(args)
-
-    if args.command != "run":
-        parser.print_help()
-        return 0
-
-    try:
-        airtable_key, airtable_base = _airtable_credentials()
-    except ValueError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return 1
-
-    if airtable_key and airtable_base:
-        # Airtable mode
-        import pyairtable
-        api = pyairtable.Api(airtable_key)
-        orgs_table = api.table(
-            airtable_base,
-            os.environ.get("AIRTABLE_ORGS_TABLE", "Organizations")
-        )
-        events_table = api.table(
-            airtable_base,
-            os.environ.get("AIRTABLE_EVENTS_TABLE", "Events")
-        )
-        orgs = load_orgs_airtable(orgs_table)
-        try:
-            topics_table = api.table(
-                airtable_base,
-                os.environ.get("AIRTABLE_TOPICS_TABLE", "Topics")
-            )
-            topics = topics_from_airtable(topics_table)
-        except Exception as e:
-            print(f"Warning: could not load Topics table ({e}); tagging skipped")
-            topics = []
-        if args.dry_run:
-            store = DryRunStore()
-        else:
-            store = AirtableEventStore(events_table)
-    else:
-        # CSV mode
-        orgs = load_orgs_csv(args.orgs)
-        if os.path.exists(args.topics):
-            topics = load_topics_csv(args.topics)
-        else:
-            topics = []
-        if args.dry_run:
-            store = DryRunStore()
-        else:
-            store = CsvEventStore(args.out)
-
-    # Run pipeline
-    summaries = run_pipeline(orgs, store, topics=topics)
-
-    # Print summaries
-    total_new = 0
-    total_seen = 0
-    any_failed = False
-    for summary in summaries:
-        org = summary["org"]
-        ok = summary["ok"]
-        error = summary["error"]
-        events_found = summary["events_found"]
-        new = summary["new"]
-        seen = summary["seen"]
-        total_new += new
-        total_seen += seen
-
-        if not ok:
-            any_failed = True
-
-        cancelled = summary.get("possibly_cancelled", 0)
-        cancelled_note = f", {cancelled} possibly cancelled" if cancelled else ""
-        if ok:
-            print(f"{org}: ok, {events_found} found, {new} new, {seen} seen{cancelled_note}")
-        else:
-            print(f"{org}: error ({error}), {events_found} found, {new} new, {seen} seen{cancelled_note}")
-
-    # Print totals
-    print(f"Totals: {total_new} new, {total_seen} seen")
-
-    return 1 if any_failed else 0
+    parser.print_help()
+    return 0
 
 
 if __name__ == "__main__":
