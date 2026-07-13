@@ -1,5 +1,9 @@
 # Phase 2 Stabilization Implementation Plan
 
+> **Status: completed July 12, 2026.** Retained as a decision record; it is not
+> the current implementation batch. The four outcomes are summarized in the
+> historical Phases 1-2 section of `ROADMAP.md`.
+
 ## Objective
 
 Close four correctness gaps in behavior already promised by Phase 2 before

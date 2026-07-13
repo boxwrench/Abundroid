@@ -29,6 +29,7 @@ class Source:
     default_kind: str = 'other'
     active: bool = True
     notes: str = ''
+    record_id: str = ''
 
 
 @dataclass
@@ -83,3 +84,52 @@ class Topic:
     keywords: list[str] = field(default_factory=list)
     exclusions: list[str] = field(default_factory=list)
     active: bool = True
+
+
+@dataclass
+class SourceRun:
+    """One check or collection attempt for a Source."""
+
+    run_id: str
+    source_id: str
+    source_name: str
+    source_url: str
+    start_time: datetime
+    finish_time: datetime
+    result: str  # "success" | "failure"
+    items_found: int
+    items_new: int = 0
+    items_seen: int = 0
+    http_status: int | None = None
+    error: str = ""
+
+    def __post_init__(self):
+        if self.start_time.utcoffset() is None or self.finish_time.utcoffset() is None:
+            raise ValueError("Timestamps must be timezone-aware.")
+        if self.finish_time < self.start_time:
+            raise ValueError("Finish time cannot be earlier than start time.")
+        if self.result not in {"success", "failure", "paused"}:
+            raise ValueError("Result must be success, failure, or paused.")
+        if min(self.items_found, self.items_new, self.items_seen) < 0:
+            raise ValueError("Item counts cannot be negative.")
+        if self.result == "success" and self.error:
+            raise ValueError("Successful runs cannot contain an error.")
+
+    def derive_health(self, active: bool = True) -> str:
+        """Derive source health status based on this run and active flag."""
+        if not active or self.result == "paused":
+            return "Paused"
+        if self.result == "failure":
+            return "Needs attention"
+        if self.items_found == 0:
+            return "No recent items"
+        return "Working"
+
+
+def derive_source_health(source: Source, latest_run: SourceRun | None) -> str:
+    """Derive health status for a Source given its active state and latest run."""
+    if not source.active:
+        return "Paused"
+    if latest_run is None:
+        return "Paused"
+    return latest_run.derive_health(active=True)

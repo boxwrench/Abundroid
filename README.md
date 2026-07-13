@@ -33,6 +33,7 @@ Most Abundance staff use the Airtable Interface, not a terminal. They can:
 They do not need to understand feeds, database IDs, hashes, or code. A
 technical deployer sets up the tracker and fixes a source when its website
 changes.
+
 ## Who needs technical knowledge?
 
 One technical deployer installs Abundroid, creates the Airtable fields, stores
@@ -49,7 +50,7 @@ Interface and requires no terminal:
 | Bring an archived organization back | **Restore** action |
 | Add or pause a blog, newsroom, feed, or updates page | Related **Sources** list |
 | Review new publications | **Review Queue** in **Items** |
-| See which source needs help | **Source Health** (Phase 4) |
+| See which source needs help | **Source Health** |
 
 Permanent deletion is restricted to base administrators. Normal operators
 archive instead, so previously collected Items remain available. See the
@@ -64,8 +65,8 @@ archive instead, so previously collected Items remain available. See the
 - **Items** is the unified review stream. Filtered views provide separate
   article, update, announcement, and report queues without separate
   pipelines.
-- **Source Runs** will record plain-language health and errors for each source
-  in Phase 4.
+- **Source Runs** records plain-language health and errors for each collection
+  attempt.
 - **Topics** contains the editable keyword taxonomy used for suggestions.
 
 The exact fields, views, and field ownership rules are in
@@ -75,12 +76,12 @@ The exact fields, views, and field ownership rules are in
 
 **Available now:** RSS/Atom source collection, CSV and Airtable storage, topic
 suggestions, stable identity, change flags, cross-run duplicate flags,
-review-safe updates, and failure isolation.
+review-safe updates, failure isolation, and Source Run history.
 
 **Planned, not yet available:** automatic feed discovery, scheduled runs,
-live Source Runs and health status, article JSON-LD and plain-HTML extraction,
-and digest generation. The Airtable schema and Interface design are documented,
-but a real base still needs deployment and validation.
+article JSON-LD and plain-HTML extraction, and digest generation. The Airtable
+schema and Interface design are documented, but a real base still needs
+deployment and validation. That validation is the sole current milestone.
 
 ## Product promises
 

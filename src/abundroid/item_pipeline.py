@@ -22,16 +22,30 @@ def run_item_pipeline(
     adapters=None,
     topics=None,
     duplicate_lookback_days=90,
+    clock=None,
+    id_gen=None,
 ):
     '''Fetch active sources, enrich their items, and persist one batch.'''
+    import uuid
+    from datetime import datetime, timezone
+    from abundroid.models import SourceRun
+
     fetch = fetch or default_fetch
     adapters = adapters or ITEM_ADAPTERS
+    clock = clock or (lambda: datetime.now(timezone.utc))
+    id_gen = id_gen or (lambda: str(uuid.uuid4()))
+
     summaries = []
     collected = []
+    source_runs = []
+    active_attempts = []
 
     for source in sources:
         if not source.active:
             continue
+
+        run_id = id_gen()
+        start_time = clock()
 
         summary = {
             'source': source.name or source.url,
@@ -42,21 +56,51 @@ def run_item_pipeline(
         }
         summaries.append(summary)
 
+        attempt = {
+            'run_id': run_id,
+            'source': source,
+            'start_time': start_time,
+            'finish_time': None,
+            'result': 'failure',
+            'items_found': 0,
+            'http_status': None,
+            'error': '',
+        }
+        active_attempts.append(attempt)
+
         adapter = adapters.get(source.format)
         if adapter is None:
-            summary['error'] = f'unknown source format: {source.format}'
+            err_msg = f'unknown source format: {source.format}'
+            summary['error'] = err_msg
+            attempt['error'] = err_msg
+            attempt['finish_time'] = clock()
             continue
 
         try:
-            items = adapter(fetch(source.url), source)
+            content = fetch(source.url)
+            items = adapter(content, source)
             for item in items:
                 item.uid = compute_item_uid(item)
                 item.source_hash = item_content_hash(item)
             collected.extend(items)
             summary['items_found'] = len(items)
             summary['ok'] = True
+
+            attempt['result'] = 'success'
+            attempt['items_found'] = len(items)
+            attempt['finish_time'] = clock()
         except Exception as exc:
-            summary['error'] = str(exc)
+            err_msg = str(exc)
+            summary['error'] = err_msg
+            attempt['error'] = err_msg
+            attempt['finish_time'] = clock()
+            response = getattr(exc, 'response', None)
+            if response is not None and hasattr(response, 'status_code'):
+                attempt['http_status'] = response.status_code
+            elif hasattr(exc, 'status_code'):
+                attempt['http_status'] = getattr(exc, 'status_code')
+            elif hasattr(exc, 'code'):
+                attempt['http_status'] = getattr(exc, 'code')
 
     if topics:
         tag_items(collected, topics)
@@ -70,9 +114,35 @@ def run_item_pipeline(
     if set_duplicates and duplicate_links:
         set_duplicates(duplicate_links)
 
+    active_sources_count = len(active_attempts)
+    for attempt in active_attempts:
+        if active_sources_count == 1 and attempt['result'] == 'success':
+            attempt['items_new'] = result.get('new', 0)
+            attempt['items_seen'] = result.get('seen', 0)
+        else:
+            attempt['items_new'] = 0
+            attempt['items_seen'] = 0
+
+        source_run = SourceRun(
+            run_id=attempt['run_id'],
+            source_id=attempt['source'].record_id,
+            source_name=attempt['source'].name,
+            source_url=attempt['source'].url,
+            start_time=attempt['start_time'],
+            finish_time=attempt['finish_time'] or clock(),
+            result=attempt['result'],
+            items_found=attempt['items_found'],
+            items_new=attempt['items_new'],
+            items_seen=attempt['items_seen'],
+            http_status=attempt['http_status'],
+            error=attempt['error'],
+        )
+        source_runs.append(source_run)
+
     return {
         'sources': summaries,
         'items_found': len(collected),
         'new': result['new'],
         'seen': result['seen'],
+        'source_runs': source_runs,
     }

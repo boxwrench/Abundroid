@@ -41,41 +41,53 @@ calendar interpretation. They are compatibility features, not the target
 product model.
 
 A stabilization batch closed four correctness gaps in this pipeline's
-already-promised behavior — source-scoped cancellation checks, persisted
+already-promised behavior: source-scoped cancellation checks, persisted
 duplicate flags on previously-seen events, relative JSON-LD URL resolution,
-and a failing CLI exit status on partial run failure — with a regression test
+and a failing CLI exit status on partial run failure, with a regression test
 behind each fix. See the [Phase 2 Stabilization
 Plan](PHASE2-STABILIZATION-PLAN.md). Worth doing because the legacy Events
 path stays live until existing deployments migrate (see Phase 3 exit criteria
 below).
 
+Retire the legacy Event path only after every known deployment has exported a
+backup, completed migration, verified Item counts and reviewer fields, run at
+least three successful unified collection cycles, and confirmed that no job or
+operator still invokes `abundroid run`. Delete the compatibility code at that
+point rather than preserving it behind new abstractions.
+
 ## Phase 3 - Unified Published Items (in progress)
 
 **Implemented:** the RSS/Atom Item model, Source model, stable identity,
-topic tagging, cross-run duplicate flags, CSV/Airtable batch stores, the
-`abundroid collect` command, and legacy Event migration tooling. **Still required for phase exit:** live Airtable
-validation and operator-interface setup.
+topic tagging, cross-run duplicate flags, CSV/Airtable batch stores, Source Run
+history and health, the `abundroid collect` command, and legacy Event migration
+tooling. **The sole current milestone is live Airtable validation and minimum
+operator-interface setup.**
 
-- Add an `Item` model with `kind`, publisher, canonical URL, source item ID,
+- [Done] Add an `Item` model with `kind`, publisher, canonical URL, source item ID,
   publication date, author, summary, topics, and optional scheduled-event
   fields.
-- Add a `Source` model separate from `Organization`. Sources record retrieval
+- [Done] Add a `Source` model separate from `Organization`. Sources record retrieval
   format (`rss`, `jsonld`, `html`, `ical`) independently from item kind.
-- Make RSS the first complete content path. Preserve RSS/Atom GUIDs, canonical
+- [Done] Make RSS the first complete content path. Preserve RSS/Atom GUIDs, canonical
   URLs, authors, and publication timestamps rather than forcing posts into an
   event shape.
-- Add an **Items** table and review queue. Use filtered Airtable views for
+- [Done] Add an **Items** table and review queue. Use filtered Airtable views for
   articles, updates, announcements, and events rather than separate tables and
   pipelines.
-- Replace URL-only identity with source ID -> canonical URL -> deterministic
+- [Done] Replace URL-only identity with source ID -> canonical URL -> deterministic
   fallback priority.
-- Compare new candidates with persisted recent items. Calendar date must not be
+- [Done] Compare new candidates with persisted recent items. Calendar date must not be
   required for content duplicate detection.
-- Keep the legacy Events path working until existing deployments can migrate.
+- [Done] Keep the legacy Events path working until existing deployments can migrate.
 
-**Exit criteria:** a staff member can approve an organization and source in
-Airtable, run ingestion, review new RSS items, correct topics or summaries, and
-rerun without duplicate records.
+**Exit criteria:** monitor one to three real organizations through RSS; collect
+at least twice without duplicate Items; preserve reviewer edits across a
+rerun; exercise a broken and an unlinked Source; and have a non-developer add,
+pause, archive, restore, and review through the Airtable Interface. Record all
+manual workarounds.
+
+No new ingestion or enrichment feature enters current scope unless it is
+required to complete this validation.
 
 ## Phase 4 - Administration, Health, and Automation
 
@@ -83,10 +95,8 @@ rerun without duplicate records.
   and administrator-only Permanent Delete actions.
 - Source discovery assistant: a user enters an organization website; the bot
   suggests likely feeds and pages for human approval.
-- Plain-language source health (`Working`, `No recent items`, `Needs attention`,
-  `Paused`) backed by per-source run history.
-- Run Log and Source Run records with fetch time, result counts, response
-  metadata, and actionable errors.
+- [Done] Plain-language source health backed by per-source run history, pending
+  live Airtable validation.
 - Scheduled GitHub Actions runs with secrets stored as repository secrets.
 - Conditional HTTP requests, caching, connection reuse, and bounded retries.
 
@@ -123,6 +133,20 @@ changes can be reviewed without losing editorial edits.
 - Organization, author, topic, and co-publication relationship analysis.
 - Trend reports, opt-in alerts, and recommendations.
 - Multi-ecosystem deployments using separate bases and schedules.
+
+## Feature Gates
+
+- Add another Item source format only when a named high-priority organization
+  cannot be covered by RSS.
+- Add discovery only when manual Source setup repeatedly blocks operators.
+- Add caching or retries only after measured latency, rate limits, bandwidth,
+  or transient failures justify them.
+- Add AI assistance only when review data shows recurring errors or material
+  editing effort that deterministic rules cannot address.
+- Add a digest only when it has a named owner, audience, cadence, and enough
+  approved Items.
+- Add public or multi-ecosystem output only for an approved real deployment or
+  concrete audience.
 
 The detailed contracts and migration sequence are in
 [`docs/IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).

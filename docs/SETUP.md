@@ -5,8 +5,7 @@ This guide has two audiences:
 - **Technical deployer:** completes installation, Airtable schema, credentials,
   and manual collection until Phase 4 scheduling is implemented.
 - **Daily operator:** adds, pauses, archives, and restores organizations;
-  and reviews Items entirely in Airtable. Live source health arrives in
-  Phase 4.
+  reviews Items; and checks Source health entirely in Airtable.
 
 Routine operation must not require a terminal or knowledge of RSS, JSON-LD,
 or adapters.
@@ -83,9 +82,7 @@ Create the tables and fields in [airtable-schema.md](airtable-schema.md):
 2. **Sources**
 3. **Items**
 4. **Topics**
-
-Create **Source Runs** now if you want the base ready for Phase 4 health
-history. The collector does not write that table yet.
+5. **Source Runs**
 
 Keep **Events** in an existing deployment because it supports the legacy
 `abundroid run` path. Retain **Run Log** if the base already uses it for
@@ -201,21 +198,18 @@ or **Last Seen**. These fields let the bot recognize a publication across
 runs. Once a person edits editorial copy, later source updates do not silently
 replace it; a change is flagged for review.
 
-### Check source health (Phase 4)
+### Check source health
 
-Once Phase 4 is implemented, open **Source Health** and use the plain-language
-status:
+The collector records every collection attempt as a **Source Run** record. For local CSV runs, history is appended to `output/source_runs.csv` beside your items. For Airtable mode, run records are written to the **Source Runs** table, which drives the plain-language health status of each Source:
 
 | Status | Meaning | Operator action |
 |---|---|---|
-| `Working` | The last fetch succeeded | None |
-| `No recent items` | Fetch succeeded but found nothing new recently | Usually none; inspect if unexpected |
+| `Working` | The last fetch succeeded and returned one or more valid items | None |
+| `No recent items` | Fetch succeeded but returned no items | Usually none; inspect if unexpected |
 | `Needs attention` | The source failed or its format changed | Open the latest Source Run and ask an advanced admin to fix the URL or format |
 | `Paused` | The Source or its Organization is inactive | None unless it should resume |
 
-The current collector does not write these statuses. Until Phase 4, the
-technical operator checks command output. One broken Source does not stop other
-Sources.
+One broken Source does not stop other active Sources.
 
 ## Legacy Events Compatibility
 
@@ -259,7 +253,7 @@ Without `--apply`, the tool runs in preview mode, performing no writes but displ
 | Airtable returns `401` or `403` | Check the token, scopes, and base access |
 | Airtable reports an unknown field | Match field names and types to `airtable-schema.md` |
 | A Source is not collected | Confirm its Organization is `Approved` and Active, and the Source is Active |
-| A feed succeeds but produces no Items | An empty feed may be valid; inspect command output until Source Runs is wired |
+| A feed succeeds but produces no Items | An empty feed may be valid; inspect its latest Source Run and the feed directly |
 | The same publication appears twice | Mark one `Duplicate`; retain both until identity rules are checked |
 | An archived organization still runs | Confirm **Active** is off on the Organization and restart the next collection |
 

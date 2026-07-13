@@ -48,6 +48,17 @@ def load_env(path=".env"):
             os.environ.setdefault(key, value)
 
 
+def _airtable_credentials():
+    """Return the configured Airtable credential pair or the CSV-mode pair."""
+    key = os.environ.get("AIRTABLE_API_KEY", "").strip()
+    base_id = os.environ.get("AIRTABLE_BASE_ID", "").strip()
+    if bool(key) != bool(base_id):
+        raise ValueError(
+            "AIRTABLE_API_KEY and AIRTABLE_BASE_ID must both be set, or neither"
+        )
+    return key, base_id
+
+
 class DryRunStore:
     """Wrapper store that prints events instead of persisting."""
 
@@ -94,8 +105,11 @@ def _load_airtable_topics(api, base_id):
 
 def run_collect(args):
     '''Run the unified published-items pipeline.'''
-    airtable_key = os.environ.get('AIRTABLE_API_KEY', '').strip()
-    airtable_base = os.environ.get('AIRTABLE_BASE_ID', '').strip()
+    try:
+        airtable_key, airtable_base = _airtable_credentials()
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
 
     if airtable_key and airtable_base:
         import pyairtable
@@ -121,32 +135,59 @@ def run_collect(args):
         topics = load_topics_csv(args.topics) if os.path.exists(args.topics) else []
         store = DryRunItemStore() if args.dry_run else CsvItemStore(args.out)
 
+    source_run_store = None
+    if not args.dry_run:
+        if airtable_key and airtable_base:
+            try:
+                source_runs_table = api.table(
+                    airtable_base,
+                    os.environ.get('AIRTABLE_SOURCE_RUNS_TABLE', 'Source Runs'),
+                )
+                from abundroid.stores.source_run_airtable_store import AirtableSourceRunStore
+                source_run_store = AirtableSourceRunStore(source_runs_table)
+            except Exception as e:
+                print(f"Error initializing Airtable source runs store: {e}", file=sys.stderr)
+                return 1
+        else:
+            try:
+                csv_runs_path = Path(args.out).parent / "source_runs.csv"
+                from abundroid.stores.source_run_csv_store import SourceRunCsvStore
+                source_run_store = SourceRunCsvStore(csv_runs_path)
+            except Exception as e:
+                print(f"Error initializing CSV source runs store: {e}", file=sys.stderr)
+                return 1
+
     result = run_item_pipeline(sources, store, topics=topics)
+    any_failed = False
     for summary in result['sources']:
         name = summary['source']
         if summary['ok']:
             print('{}: ok, {} found'.format(name, summary['items_found']))
         else:
             print('{}: error ({})'.format(name, summary['error']))
+            any_failed = True
     print(
         'Totals: {} found, {} new, {} seen'.format(
             result['items_found'], result['new'], result['seen']
         )
     )
-    return 0
+
+    if source_run_store is not None:
+        try:
+            source_run_store.save_runs(result['source_runs'])
+        except Exception as e:
+            print(f"Error saving source runs: {e}", file=sys.stderr)
+            return 1
+
+    return 1 if any_failed else 0
 
 
 def run_migrate_events(args):
     """Run the event migration pipeline."""
-    # Determine mode: Airtable or CSV
-    airtable_key = os.environ.get("AIRTABLE_API_KEY", "").strip()
-    airtable_base = os.environ.get("AIRTABLE_BASE_ID", "").strip()
-
-    if bool(airtable_key) != bool(airtable_base):
-        print(
-            "Error: AIRTABLE_API_KEY and AIRTABLE_BASE_ID must both be set for Airtable migration",
-            file=sys.stderr,
-        )
+    try:
+        airtable_key, airtable_base = _airtable_credentials()
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         return 1
 
     if airtable_key and airtable_base:
@@ -347,9 +388,11 @@ def main(argv=None):
         parser.print_help()
         return 0
 
-    # Determine mode: Airtable or CSV
-    airtable_key = os.environ.get("AIRTABLE_API_KEY", "").strip()
-    airtable_base = os.environ.get("AIRTABLE_BASE_ID", "").strip()
+    try:
+        airtable_key, airtable_base = _airtable_credentials()
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
 
     if airtable_key and airtable_base:
         # Airtable mode

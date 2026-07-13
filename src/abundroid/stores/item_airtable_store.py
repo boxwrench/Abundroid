@@ -95,6 +95,7 @@ def load_sources(source_table, organization_table=None) -> list[Source]:
                 default_kind=source_fields.get("Default Kind", "other"),
                 active=bool(source_fields.get("Active", False)) and organization_usable,
                 notes=source_fields.get("Notes", ""),
+                record_id=record.get("id", ""),
             )
         )
     return sources

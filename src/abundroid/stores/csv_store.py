@@ -67,16 +67,6 @@ class CsvEventStore:
         # Create parent directory if missing
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Load existing events keyed by uid
-        existing = {}
-        if self.path.exists():
-            with open(self.path, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    uid = row.get("uid", "")
-                    if uid:
-                        existing[uid] = row
-
         # Track uids we've seen in this batch (for dedup)
         seen_in_batch = set()
         new_count = 0

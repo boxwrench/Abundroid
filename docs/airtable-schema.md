@@ -54,15 +54,16 @@ announcements.
 | Organization | Link to Organizations | Human; required, exactly one organization |
 | Organization Name | Lookup from Organization -> Name | Airtable; collector uses the linked organization's name |
 | URL | URL | Human/advanced admin; required endpoint |
-| Format | Single select | Advanced admin; `rss`, `jsonld`, `html`, or `ical` |
+| Format | Single select | Advanced admin; deploy with only the `rss` option |
 | Default Kind | Single select | Human; `article`, `post`, `update`, `announcement`, `report`, `event`, or `other` |
 | Active | Checkbox | Human; unchecked skips only this Source |
 | Notes | Long text | Human; internal context or troubleshooting notes |
 
-The RSS-first Items collector currently supports `rss`. Other format options
-reserve the target model and continue through the legacy Events path where
-applicable. A future source discovery assistant will suggest URLs and formats;
-until then, an advanced administrator may need to supply them.
+The unified Items collector currently supports only `rss`. Keep `jsonld`,
+`html`, and `ical` out of the normal Source selector until a concrete source
+requires another format and its Item adapter is implemented. The generic
+string field in the code preserves that future option without exposing
+non-working choices to operators.
 
 For local CSV mode, the equivalent columns are:
 
@@ -128,12 +129,12 @@ deterministic fallback. Possible duplicates are flagged, never auto-deleted.
 The bot reads Topics and suggests matches. Reviewers remain responsible for
 the final Topics on an Item.
 
-## Source Runs (Phase 4)
+## Source Runs
 
 **Primary field:** `Run ID` (single line text)
 
-Create this table now if desired, but the current Items collector does not
-write it yet. Phase 4 will add one record per Source attempt.
+Create this table for the current deployment. The Items collector writes one
+record per active Source attempt.
 
 | Field | Type | Owner and purpose |
 |---|---|---|
@@ -148,9 +149,8 @@ write it yet. Phase 4 will add one record per Source attempt.
 | HTTP Status | Number | Bot; response status when applicable |
 | Error | Long text | Bot; actionable failure detail, blank on success |
 
-Health is per Source, not per Organization, because one broken calendar must
-not make a working newsroom appear broken. Until Phase 4 is wired, technical
-operators use command output for fetch diagnostics.
+Health is per Source, not per Organization, because one broken endpoint must
+not make a working newsroom appear broken.
 
 ## Recommended Views
 
@@ -167,7 +167,8 @@ operators use command output for fetch diagnostics.
 - **Active Sources:** `Active` checked, grouped by Organization.
 - **Sources Needing Setup:** URL empty or Format empty.
 - **Paused Sources:** `Active` unchecked.
-- **Source Health:** Phase 4 view grouped by the latest Source Run Result.
+- **Source Health:** view of Sources and their related Source Runs, showing the
+  latest Result.
 
 ### Items
 
@@ -190,8 +191,7 @@ Create an Interface named **Abundroid Admin** with these pages:
    detail, related Sources, and Edit, Pause, Archive, and Restore actions.
 2. **Review:** Review Queue with the source links, editable editorial fields,
    and status controls; hide IDs and hashes.
-3. **Source Health:** related Source list and, after Phase 4, latest Result and
-   Source Runs.
+3. **Source Health:** related Source list with latest Result and Source Runs.
 4. **Candidates:** Watchlist and Suggested organizations awaiting a decision.
 
 Configure Pause to clear Organization Active. Configure Archive to clear
@@ -218,24 +218,23 @@ the optional **Run Log** table. `abundroid run` uses these fields:
 
 Do not rename **Events** to **Items**, point `AIRTABLE_EVENTS_TABLE` at
 **Items**, or manually merge the records. `abundroid run` and
-`abundroid collect` are separate compatibility paths until the migration
-tool exists.
+`abundroid collect` are separate compatibility paths until each known legacy
+deployment completes migration and the retirement gate in the roadmap.
 
 ## Setup Checklist
 
-1. Create **Organizations**, **Sources**, **Items**, and **Topics** with the
-   exact field names and types above.
-2. Optionally create **Source Runs** now for Phase 4 readiness.
-3. Retain **Events**, **Run Log**, **Events URL**, and **Source Type** in
+1. Create **Organizations**, **Sources**, **Items**, **Topics**, and **Source
+   Runs** with the exact field names and types above.
+2. Retain **Events**, **Run Log**, **Events URL**, and **Source Type** in
    existing calendar deployments.
-4. Create the saved views and the **Abundroid Admin** Interface.
-5. Configure Pause/Archive/Restore actions and restrict permanent deletion to
+3. Create the saved views and the **Abundroid Admin** Interface.
+4. Configure Pause/Archive/Restore actions and restrict permanent deletion to
    base administrators.
-6. Create a personal access token with `data.records:read` and
+5. Create a personal access token with `data.records:read` and
    `data.records:write`, restricted to this base.
-7. Set `AIRTABLE_API_KEY` and `AIRTABLE_BASE_ID`; use table-name overrides
+6. Set `AIRTABLE_API_KEY` and `AIRTABLE_BASE_ID`; use table-name overrides
    only when the Airtable names differ.
-8. Run `abundroid collect` twice and verify that the second run creates no
+7. Run `abundroid collect` twice and verify that the second run creates no
    duplicate Items.
-9. In an existing deployment, run `abundroid run` and verify the Events
+8. In an existing deployment, run `abundroid run` and verify the Events
    compatibility path separately.

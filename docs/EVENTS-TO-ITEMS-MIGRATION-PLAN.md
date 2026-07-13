@@ -1,11 +1,14 @@
 # Events-to-Items Migration Implementation Plan
 
+> **Status: completed July 12, 2026.** Retained as a decision record; it is not
+> the current implementation batch. The `migrate-events` command now provides
+> the preview-first workflow described below.
+
 ## Objective
 
 Provide a safe, repeatable way to copy legacy Event records into unified Items
-with `kind = event`. This is the next Phase 3 exit requirement that can be
-implemented and tested offline. Deliver conversion, CSV migration, Airtable
-migration, CLI integration, and operator documentation as one bounded batch.
+with `kind = event`. The completed batch delivered conversion, CSV migration,
+Airtable migration, CLI integration, and operator documentation.
 
 ## Safety Contract
 

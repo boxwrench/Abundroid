@@ -2,6 +2,7 @@
 
 import tempfile
 import os
+import pytest
 from pathlib import Path
 from unittest.mock import patch
 
@@ -228,6 +229,21 @@ class TestCliRunBasic:
         assert "Totals:" in captured.out
         # Now check exit code
         assert result == 1
+
+    @pytest.mark.parametrize(
+        ("key", "base"),
+        [("test-key", ""), ("", "test-base")],
+    )
+    def test_legacy_run_rejects_partial_airtable_credentials(
+        self, tmp_path, monkeypatch, capsys, key, base
+    ):
+        monkeypatch.setenv("AIRTABLE_API_KEY", key)
+        monkeypatch.setenv("AIRTABLE_BASE_ID", base)
+        output = tmp_path / "events.csv"
+
+        assert main(["run", "--out", str(output)]) == 1
+        assert "must both be set" in capsys.readouterr().err
+        assert not output.exists()
 
     def test_cli_env_loader_skip_blank_and_comments(self, tmp_path, monkeypatch):
         """CLI should skip blank lines and comments in .env file."""

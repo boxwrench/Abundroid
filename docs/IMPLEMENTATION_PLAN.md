@@ -3,6 +3,13 @@
 This plan converts the calendar-oriented prototype into a publication-monitoring
 system without breaking existing Event ingestion during the transition.
 
+## Current Milestone
+
+Deploy and validate the smallest real Airtable RSS workflow. No new adapter or
+enrichment subsystem is current work. Phase 3 closes only after real reruns,
+reviewer-edit preservation, failure visibility, and the nontechnical operator
+workflow have been exercised in one base.
+
 ## Target Data Model
 
 ### Organization
@@ -68,7 +75,8 @@ The item pipeline performs:
 5. Record per-source results for health and operator visibility.
 
 Legacy `run_pipeline`, `Event`, and the Events table remain available until the
-Items path reaches parity and a migration tool exists.
+Items path reaches parity and every known deployment passes the roadmap's
+observable retirement gate.
 
 ## Airtable Administration
 
@@ -102,23 +110,25 @@ possible.
 - Batch-upsert Items while preserving human edits.
 - Add Review Queue and filtered-view setup instructions.
 
-### Milestone 3 - Persistent Deduplication and Health (partially implemented)
+### Milestone 3 - Persistent Deduplication and Health (complete)
 
 - [Done] Query recent stored Items for duplicate candidates.
 - [Done] Store duplicate relationships consistently for new and existing records.
-- Write Source Run records and update plain-language health.
-- Return a failing process status when a scheduled run is systemically broken.
+- [Done] Write Source Run records and update plain-language health.
+- [Done] Return a failing process status when a scheduled run is systemically broken.
 
 ### Milestone 4 - Migration and Admin Interface
 
 - [Done] Migrate appropriate legacy Event records into Items with `kind = event`.
 - Validate and configure the documented Airtable Interface in a live base.
-- Add source discovery suggestions from an organization homepage.
+- [Deferred] Add source discovery only if manual Source setup repeatedly blocks
+  normal operators or requires material technical effort.
 
 ### Milestone 5 - Digest and Enrichment
 
-- Generate a reviewable digest from approved Items.
-- Add article JSON-LD and grounded HTML extraction.
+- Generate a reviewable digest only for a named owner, audience, and cadence.
+- Add article JSON-LD or grounded HTML extraction only for a high-priority
+  publisher that cannot be covered by RSS.
 - Add optional AI only where measured review data justifies it.
 
 ## Acceptance Criteria

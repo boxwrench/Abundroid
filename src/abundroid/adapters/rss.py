@@ -7,7 +7,6 @@ from html.parser import HTMLParser
 
 import feedparser
 
-from abundroid.item_uid import compute_item_uid, item_content_hash
 from abundroid.models import Event, Item, Organization, Source
 
 
@@ -96,8 +95,6 @@ def parse_items(text: str, source: Source) -> list[Item]:
             author=str(entry.get('author', '') or '').strip(),
             summary=_plain_summary(summary_html),
         )
-        item.uid = compute_item_uid(item)
-        item.source_hash = item_content_hash(item)
         items.append(item)
 
     return items

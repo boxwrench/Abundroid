@@ -107,3 +107,66 @@ def test_pipeline_flags_duplicate_from_earlier_run_on_both_records():
         new_uid: 'existing',
         'existing': new_uid,
     }
+
+
+def test_pipeline_produces_source_runs_with_injections():
+    from datetime import datetime, timezone
+    store = RecordingStore()
+    sources = [
+        Source("Org A", "Active RSS", "https://example.com/rss", "rss", active=True, record_id="recSrcActive"),
+        Source("Org B", "Inactive RSS", "https://example.com/rss2", "rss", active=False, record_id="recSrcInactive"),
+        Source("Org C", "Broken format", "https://example.com/unknown", "unknown", active=True, record_id="recSrcBroken"),
+    ]
+
+    mock_time = datetime(2026, 7, 12, 12, 0, tzinfo=timezone.utc)
+    clock = lambda: mock_time
+    id_gen = lambda: "deterministic-run-id"
+
+    result = run_item_pipeline(
+        sources,
+        store,
+        fetch=lambda url: "feed",
+        adapters={"rss": lambda text, src: [Item("Post", src.organization)]},
+        clock=clock,
+        id_gen=id_gen,
+    )
+
+    # We expect 2 SourceRun objects: active RSS (success) and broken format (failure)
+    # Inactive RSS must not have a run.
+    runs = result["source_runs"]
+    assert len(runs) == 2
+
+    # Active RSS run check
+    run_success = [r for r in runs if r.source_id == "recSrcActive"][0]
+    assert run_success.run_id == "deterministic-run-id"
+    assert run_success.result == "success"
+    assert run_success.items_found == 1
+    assert run_success.start_time == mock_time
+    assert run_success.finish_time == mock_time
+    # Since multiple active sources were run, counts must be 0
+    assert run_success.items_new == 0
+    assert run_success.items_seen == 0
+
+    # Broken format run check
+    run_broken = [r for r in runs if r.source_id == "recSrcBroken"][0]
+    assert run_broken.result == "failure"
+    assert "unknown source format: unknown" in run_broken.error
+
+
+def test_pipeline_allocates_counts_for_single_source():
+    store = RecordingStore()
+    sources = [
+        Source("Org A", "Single Active", "https://example.com/rss", "rss", active=True, record_id="recSingle"),
+    ]
+
+    result = run_item_pipeline(
+        sources,
+        store,
+        fetch=lambda url: "feed",
+        adapters={"rss": lambda text, src: [Item("Post", src.organization)]},
+    )
+
+    runs = result["source_runs"]
+    assert len(runs) == 1
+    assert runs[0].items_new == 1
+    assert runs[0].items_seen == 0

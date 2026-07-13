@@ -1,5 +1,6 @@
 '''CLI tests for the unified Items collection path.'''
 
+import csv
 from unittest.mock import patch
 
 from abundroid.cli import main
@@ -64,3 +65,139 @@ def test_collect_dry_run_does_not_write(tmp_path, monkeypatch, capsys):
     assert result == 0
     assert not output.exists()
     assert '[update] Housing reform update' in capsys.readouterr().out
+
+
+def test_collect_partial_airtable_credentials_fails(tmp_path, monkeypatch, capsys):
+    sources = _sources_file(tmp_path)
+    output = tmp_path / 'items.csv'
+
+    # Only API key is set
+    monkeypatch.setenv('AIRTABLE_API_KEY', 'some_key')
+    monkeypatch.delenv('AIRTABLE_BASE_ID', raising=False)
+    result = main(['collect', '--sources', str(sources), '--out', str(output)])
+    assert result == 1
+    assert "AIRTABLE_API_KEY and AIRTABLE_BASE_ID must both be set" in capsys.readouterr().err
+    assert not output.exists()
+
+    # Only Base ID is set
+    monkeypatch.delenv('AIRTABLE_API_KEY', raising=False)
+    monkeypatch.setenv('AIRTABLE_BASE_ID', 'some_base')
+    result = main(['collect', '--sources', str(sources), '--out', str(output)])
+    assert result == 1
+    assert "AIRTABLE_API_KEY and AIRTABLE_BASE_ID must both be set" in capsys.readouterr().err
+    assert not output.exists()
+
+
+def test_collect_exit_policy_success_and_failure(tmp_path, monkeypatch, capsys):
+    _clear_airtable(monkeypatch)
+    output = tmp_path / 'items.csv'
+
+    # Create a sources file with one working and one failing/unknown format source
+    sources = tmp_path / 'sources.csv'
+    sources.write_text(
+        'organization,name,url,format,default_kind,active,notes\n'
+        'Org A,News A,https://example.com/feed1,rss,update,true,\n'
+        'Org B,News B,https://example.com/feed2,unknown,update,true,\n',
+        encoding='utf-8',
+    )
+
+    with patch('abundroid.item_pipeline.default_fetch', lambda url: RSS):
+        result = main([
+            'collect', '--sources', str(sources), '--out', str(output),
+            '--topics', str(tmp_path / 'missing.csv'),
+        ])
+    assert result == 1  # exits 1 because one source fails
+    assert output.exists()  # successful sources are still persisted
+
+    # Totals summary is still printed
+    captured = capsys.readouterr()
+    assert 'News B: error' in captured.out
+    assert 'News A: ok' in captured.out
+    assert 'Totals:' in captured.out
+
+
+def test_collect_saves_source_runs_to_csv(tmp_path, monkeypatch):
+    _clear_airtable(monkeypatch)
+    sources = _sources_file(tmp_path)
+    output = tmp_path / 'items.csv'
+    runs_file = tmp_path / 'source_runs.csv'
+
+    with patch('abundroid.item_pipeline.default_fetch', lambda url: RSS):
+        result = main([
+            'collect', '--sources', str(sources), '--out', str(output),
+            '--topics', str(tmp_path / 'missing.csv'),
+        ])
+
+    assert result == 0
+    assert runs_file.exists()
+    with open(runs_file, 'r', encoding='utf-8') as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) == 1
+    assert rows[0]['source_name'] == 'News'
+    assert rows[0]['result'] == 'success'
+
+
+def test_collect_saves_source_runs_to_airtable(monkeypatch):
+    monkeypatch.setenv('AIRTABLE_API_KEY', 'key')
+    monkeypatch.setenv('AIRTABLE_BASE_ID', 'base')
+    monkeypatch.setenv('AIRTABLE_ORGS_TABLE', 'Orgs')
+    monkeypatch.setenv('AIRTABLE_SOURCES_TABLE', 'Sources')
+    monkeypatch.setenv('AIRTABLE_ITEMS_TABLE', 'Items')
+    monkeypatch.setenv('AIRTABLE_SOURCE_RUNS_TABLE', 'Runs')
+
+    from tests.test_migration_cli import FakeAirtableApi
+    fake_api = FakeAirtableApi('key')
+
+    # Setup mock active source in fake api
+    orgs_table = fake_api.table('base', 'Orgs')
+    orgs_table.records.append({
+        "id": "org1",
+        "fields": {
+            "Name": "My Org",
+            "Active": True,
+            "Stage": "Approved",
+        }
+    })
+
+    sources_table = fake_api.table('base', 'Sources')
+    sources_table.create({
+        "Name": "Airtable RSS",
+        "URL": "https://example.com/rss",
+        "Format": "rss",
+        "Active": True,
+        "Organization": ["org1"],
+        "Organization Name": ["My Org"],
+    })
+
+    # Mock topics loading to be empty
+    with patch('pyairtable.Api', return_value=fake_api), \
+         patch('abundroid.item_pipeline.default_fetch', lambda url: RSS), \
+         patch('abundroid.cli._load_airtable_topics', return_value=[]), \
+         patch(
+             'abundroid.stores.source_run_airtable_store.AirtableSourceRunStore.save_runs'
+         ) as save_runs:
+        result = main(['collect'])
+
+    assert result == 0
+    [runs] = save_runs.call_args.args
+    assert len(runs) == 1
+    assert runs[0].derive_health() == 'Working'
+    assert runs[0].items_found == 1
+
+
+def test_collect_fails_when_saving_runs_fails(tmp_path, monkeypatch, capsys):
+    _clear_airtable(monkeypatch)
+    sources = _sources_file(tmp_path)
+    output = tmp_path / 'items.csv'
+
+    # Mock save_runs to raise an exception
+    from abundroid.stores.source_run_csv_store import SourceRunCsvStore
+    with patch('abundroid.item_pipeline.default_fetch', lambda url: RSS), \
+         patch.object(SourceRunCsvStore, 'save_runs', side_effect=Exception('Disk Full')):
+        result = main([
+            'collect', '--sources', str(sources), '--out', str(output),
+            '--topics', str(tmp_path / 'missing.csv'),
+        ])
+
+    assert result == 1
+    assert "Error saving source runs: Disk Full" in capsys.readouterr().err

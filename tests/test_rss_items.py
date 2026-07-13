@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
 from abundroid.adapters.rss import MAX_SUMMARY_LENGTH, parse_items
-from abundroid.item_uid import item_content_hash
 from abundroid.models import Source
 
 
@@ -72,8 +71,8 @@ def test_parse_items_captures_rss_publication_metadata():
     assert first.author == 'Sam Writer'
     assert first.published_at == datetime(2026, 7, 9, 19, 30, tzinfo=timezone.utc)
     assert first.summary == 'One hundred new homes were approved.'
-    assert first.uid.startswith('source:')
-    assert first.source_hash == item_content_hash(first)
+    assert first.uid == ''
+    assert first.source_hash == ''
 
 
 def test_parse_items_keeps_titled_guid_only_entries():
@@ -81,7 +80,7 @@ def test_parse_items_keeps_titled_guid_only_entries():
 
     assert item.source_item_id == 'guid-only'
     assert item.canonical_url == ''
-    assert item.uid.startswith('source:')
+    assert item.uid == ''
 
 
 def test_parse_items_supports_atom_and_prefers_canonical_links():
