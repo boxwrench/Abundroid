@@ -54,7 +54,7 @@ Interface and requires no terminal:
 
 Permanent deletion is restricted to base administrators. Normal operators
 archive instead, so previously collected Items remain available. See the
-[daily operator guide](docs/SETUP.md#daily-operation-no-terminal).
+[daily operator guide](docs/SETUP.md#daily-operation).
 
 ## The data model
 

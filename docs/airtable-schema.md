@@ -1,9 +1,9 @@
 # Build the Abundroid Airtable Base
 
 This is a click-by-click guide for someone who has not used Airtable before.
-Use Airtable in a desktop browser and sign in to an account that can create a
-base. You need **Owner** or **Creator** permission to configure fields and the
-Interface.
+Use Airtable in a desktop browser. Create a free Airtable account if you do not
+already have one, then sign in to an account that can create a base. You need
+**Owner** or **Creator** permission to configure fields and the Interface.
 
 Useful Airtable terms:
 
@@ -28,7 +28,8 @@ control has moved.
 
 ## 1. Create a Blank Base
 
-1. Open [airtable.com](https://airtable.com/) and sign in.
+1. Open [airtable.com](https://airtable.com/). Create a free account if needed,
+   then sign in.
 2. On the Home screen, select the workspace that should own Abundroid.
 3. Click **+ Create** and choose the blank or start-from-scratch base option.
    Do not import a spreadsheet or choose a template.
@@ -104,6 +105,9 @@ Open **Sources** and create these fields in order:
 | Default Kind | Single select | Add `article`, `post`, `update`, `announcement`, `report`, `event`, `other` |
 | Active | Checkbox | Checked means this Source may run |
 | Notes | Long text | Setup or troubleshooting notes |
+
+Use `rss` for both RSS and Atom feed URLs. Abundroid uses the same parser for
+both feed standards, so there is intentionally no separate `atom` choice.
 
 To create **Organization**:
 
@@ -217,7 +221,14 @@ sorting, not the underlying records.
 ## 10. Build the Abundroid Admin Interface
 
 Interfaces give daily operators a smaller app instead of exposing raw tables.
-Owner or Creator permission is required to build one.
+Interface Designer and the **Update record** button are currently documented as
+available on all Airtable plan types. Sharing an Interface separately from its
+base requires a paid plan; on the Free plan, give each operator appropriate
+access to the base as well. Airtable changes its UI over time, so if a named
+control is missing, first check the selected layout and your **Owner** or
+**Creator** permission, then compare the current
+[Interface permissions guide](https://support.airtable.com/v1/docs/interface-designer-permissions)
+and [Interface button guide](https://support.airtable.com/docs/using-buttons-in-interfaces).
 
 1. Open the base and click **Interfaces** near the top.
 2. For the first Interface, choose **Build it yourself**. If an Interface

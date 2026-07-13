@@ -221,6 +221,9 @@ In **Sources**, create one row:
 | Default Kind | Usually `article`, `post`, or `update` |
 | Active | Checked |
 
+Use `rss` in **Format** for an Atom feed too. Abundroid handles RSS and Atom
+with the same parser, so Airtable does not need an `atom` option.
+
 **Organization Name** must fill itself after you select the Organization. If it
 stays blank, repair the Lookup field before continuing. Topics may remain empty.
 
