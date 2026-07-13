@@ -54,6 +54,12 @@ folder containing `pyproject.toml`, `src`, and `docs`.
 
 ### 1. Install Abundroid
 
+Follow only the subsection for your operating system; do not mix commands from
+the Windows and Ubuntu blocks. Windows normally uses `python` and
+`.venv\Scripts`; Ubuntu normally uses `python3` and `.venv/bin`. On Ubuntu, a
+`python: command not found` message is expected when only `python3` is installed.
+Use `python3` as shown below rather than installing a `python` alias.
+
 #### Windows
 
 These commands have been smoke-tested on Windows 11. Install
@@ -176,14 +182,16 @@ The command should name the Source, report it as `ok`, and create
 time. The second summary should report `0 new`; the CSV should not gain a
 duplicate Item row.
 
-This step tests local CSV mode only. The legacy calendar path remains available
-as `.\.venv\Scripts\abundroid.exe run`; it reads `data/organizations.csv` and
-writes `output/events.csv`.
+This step tests the unified Items path in local CSV mode. Continue with that
+same path for the Airtable deployment.
 
 ### 3. Create the Airtable base
 
 Open [Airtable](https://airtable.com/) in a browser and create or select the
 base that Abundroid will use. A new deployment may name it `Abundroid`.
+
+> **New deployment:** create only the five tables below. Do not create
+> **Events** or **Run Log**, and do not use the legacy `abundroid run` command.
 
 Create these five tables before adding linked-record fields:
 
@@ -207,11 +215,6 @@ duplicates. Pay particular attention to these contracts:
 - The only **Sources -> Format** option needed now is lowercase `rss`.
 - Field names are case- and space-sensitive to the integration. Do not rename
   fields such as **Default Kind**, **Published At**, or **Items Found**.
-
-Keep **Events** in an existing deployment because it supports the legacy
-`abundroid run` path. Retain **Run Log** if the base already uses it for
-history, but the current commands do not write it. A new deployment does not
-need to create either legacy table.
 
 Do not create the Interface yet. First validate table reads and writes in steps
 6 and 7; live records make the Interface easier to configure correctly.
@@ -335,10 +338,6 @@ Edit one Item's **Title**, **Summary**, **Topics**, and **Status** in Airtable,
 then run collection a third time. Confirm that those reviewer-owned edits remain
 unchanged.
 
-Existing calendar deployments should separately run
-`.\.venv\Scripts\abundroid.exe run` and confirm their **Events** queue still
-works. New deployments should skip that compatibility check.
-
 ### 8. Validate failure and pause behavior
 
 Add a second active Source linked to the same test Organization, but give it a
@@ -455,7 +454,11 @@ One broken Source does not stop other active Sources from being collected,
 although the overall command returns a failure status so the problem is not
 hidden.
 
-## Legacy Events Compatibility
+## Appendix: Existing Legacy Deployments Only
+
+Skip this entire section for a new deployment. It exists only for an older
+calendar deployment that already has **Events**, **Run Log**, and jobs invoking
+`abundroid run`.
 
 `abundroid run` is the existing calendar-oriented command. It continues to
 read the legacy **Events URL** and **Source Type** fields on **Organizations**
@@ -493,8 +496,9 @@ Without `--apply`, the tool runs in preview mode, performing no writes but displ
 
 | Symptom | Action |
 |---|---|
-| `abundroid: command not found` | From the repository root, run `.\.venv\Scripts\abundroid.exe`; if it is missing, repeat the install command in step 1 |
-| `python` or `git` is not recognized | Install the missing prerequisite, close PowerShell, open it again, and repeat the version check |
+| `abundroid: command not found` | From the repository root, use `.\.venv\Scripts\abundroid.exe` on Windows or `./.venv/bin/abundroid` on Ubuntu; if it is missing, repeat the install commands in step 1 |
+| Ubuntu reports `python: command not found` | Use `python3` for the system interpreter and `./.venv/bin/python` after creating the virtual environment; do not install an alias |
+| Windows reports `python` or `git` is not recognized | Install the missing prerequisite, close PowerShell, open it again, and repeat the version check |
 | Collection uses CSV after `.env` was created | Run from the repository root, confirm `.env` is there, and set both Airtable credential values without quotes |
 | Airtable returns `401` or `403` | Check the token, scopes, and base access |
 | Airtable reports an unknown field | Match field names and types to `airtable-schema.md` |

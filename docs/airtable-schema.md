@@ -5,9 +5,13 @@ monitoring workflow. A technical deployer creates the fields, views,
 permissions, and Interface once. Daily operators then use the Interface
 without a terminal or knowledge of source formats.
 
-The new **Sources** and **Items** tables do not replace the legacy **Events**
-table in place. Existing deployments keep **Events** and **Run Log** while the
-two ingestion paths coexist.
+A new deployment creates **Organizations**, **Sources**, **Items**, **Topics**,
+and **Source Runs** only. It does not create **Events** or **Run Log** and does
+not use `abundroid run`.
+
+Existing calendar deployments do not rename **Events** in place. They retain
+**Events** and **Run Log** temporarily while completing the retirement gate in
+the roadmap; the legacy appendix below applies only to them.
 
 ## Organizations
 
@@ -26,11 +30,6 @@ newsrooms, feeds, or calendars it owns.
 | Stage | Single select | Human; `Approved`, `Watchlist`, `Suggested`, or `Archived` |
 | Notes | Long text | Human; internal context |
 | Sources | Link to Sources | Airtable reciprocal link; one organization can have many |
-| Events URL | URL | Legacy only; retained for `abundroid run` |
-| Source Type | Single select | Legacy only; `ical`, `rss`, `jsonld`, or `html` |
-| Last Checked | Date + time | Legacy bot bookkeeping |
-| Last Successful Pull | Date + time | Legacy bot bookkeeping |
-| Health | Single select | Reserved legacy field; current commands do not update it |
 
 The unified collector processes Sources whose linked Organization is approved
 and active. An organization without an active Source produces no Items.
@@ -203,10 +202,21 @@ Restrict raw-table deletion and the **Permanent Delete** view to base
 administrators. Deleting an Organization must not cascade to Items. Archive by
 default.
 
-## Legacy Events Compatibility
+## Appendix: Legacy Events Compatibility
 
 Existing deployments must keep the **Events** table, its current fields, and
-the optional **Run Log** table. `abundroid run` uses these fields:
+the optional **Run Log** table. They also retain these legacy fields on
+**Organizations**; new deployments do not add them:
+
+| Field | Type |
+|---|---|
+| Events URL | URL |
+| Source Type | Single select: `ical`, `rss`, `jsonld`, or `html` |
+| Last Checked | Date + time |
+| Last Successful Pull | Date + time |
+| Health | Single select |
+
+`abundroid run` uses these fields on **Events**:
 
 - Identity/bookkeeping: **Event UID**, **Source Hash**, **First Seen**,
   **Last Seen**, **Changed**, **Possibly Cancelled**, **Possible Duplicate Of**.
