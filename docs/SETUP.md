@@ -40,43 +40,152 @@ The Airtable words translate simply:
 
 Only edit fields intended for people. Leave IDs, hashes, and first/last-seen
 dates alone; those are how the tracker recognizes the same publication later.
+
 ## One-Time Technical Deployment
+
+Complete the following steps on the computer that will run collection. Airtable
+table and Interface setup is browser-based and may be done on another computer,
+but the repository, `.env`, and collection command must be on the collection
+computer.
+
+The Windows examples use PowerShell. Unless a step explicitly says to use the
+Airtable website, run every command from the repository root: the `Abundroid`
+folder containing `pyproject.toml`, `src`, and `docs`.
 
 ### 1. Install Abundroid
 
-Install Python 3.11 or newer, then run:
+#### Windows
+
+These commands have been smoke-tested on Windows 11. Install
+[Git](https://git-scm.com/downloads) and Python 3.11 or newer. Open **Windows
+PowerShell** from the Start menu and verify both programs:
 
 ```powershell
-git clone https://github.com/boxwrench/Abundroid.git
-cd Abundroid
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -e '.[dev]'
-python -m pytest
+git --version
+python --version
 ```
 
-On macOS or Linux, activate with `source .venv/bin/activate` instead.
+Choose a parent folder for the repository. The example below uses `C:\GitHub`;
+use a different absolute path if that is where you keep projects. `git clone`
+creates the `Abundroid` folder, and `Set-Location` enters it:
+
+```powershell
+New-Item -ItemType Directory -Force C:\GitHub
+Set-Location C:\GitHub
+git clone https://github.com/boxwrench/Abundroid.git
+Set-Location .\Abundroid
+```
+
+If the repository is already cloned, do not clone it again. Open PowerShell and
+enter the existing folder directly, for example:
+
+```powershell
+Set-Location C:\GitHub\Abundroid
+```
+
+Confirm that PowerShell is in the repository root. This command must print
+`True`:
+
+```powershell
+Test-Path .\pyproject.toml
+```
+
+Create the virtual environment, install Abundroid and its test dependencies,
+then run the test suite:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pytest
+```
+
+All tests should pass. The rest of this guide uses
+`.\.venv\Scripts\abundroid.exe` explicitly, so activating the virtual
+environment is optional. If you activate it, `abundroid` is equivalent to that
+full path.
+
+#### Ubuntu 24.04
+
+These commands have been smoke-tested on Ubuntu 24.04. Open **Terminal** and
+install Git, Python, virtual-environment support, pip, certificates, and a text
+editor:
+
+```bash
+sudo apt update
+sudo apt install -y git python3 python3-venv python3-pip ca-certificates nano
+git --version
+python3 --version
+```
+
+`python3 --version` must report Python 3.11 or newer. If it reports an older
+version, stop and install a supported Python version before continuing.
+
+Choose a parent folder, clone the repository, and enter its root. This example
+uses `~/projects`:
+
+```bash
+mkdir -p ~/projects
+cd ~/projects
+git clone https://github.com/boxwrench/Abundroid.git
+cd Abundroid
+test -f pyproject.toml && echo "Repository root confirmed"
+```
+
+If the repository is already cloned, skip `git clone` and use `cd` with its
+existing absolute path. Then install and test Abundroid:
+
+```bash
+python3 -m venv .venv
+./.venv/bin/python -m pip install --upgrade pip
+./.venv/bin/python -m pip install -e ".[dev]"
+./.venv/bin/python -m pytest
+```
+
+All tests should pass. For every later command in this guide, replace the
+Windows path `.\.venv\Scripts\abundroid.exe` with
+`./.venv/bin/abundroid`. The data file and output paths work unchanged.
+
+On macOS, use the same `.venv/bin` paths, but install Python 3.11 or newer and
+Git with your normal package manager first.
 
 ### 2. Test the unified Items path locally
 
 Without Airtable credentials, the new collection path reads
 `data/sources.csv` and writes `output/items.csv`:
 
-First replace the disabled example URL with a real RSS or Atom feed and set
-`active` to `true`. The checked-in example is inactive so a fresh checkout
-does not make an unexpected network request.
+Open `data/sources.csv` in a text editor. Replace the example row with a real
+public RSS or Atom feed. Keep the header unchanged, set `format` to `rss`, and
+set `active` to `true`. For example:
 
-```powershell
-abundroid collect
+```csv
+organization,name,url,format,default_kind,active,notes
+Example Organization,News feed,https://example.org/feed.xml,rss,article,true,
 ```
 
-Run it a second time to verify that an unchanged feed creates no new Items.
-The legacy calendar path remains available as `abundroid run`; it reads
-`data/organizations.csv` and writes `output/events.csv`.
+Use a real feed URL in place of `https://example.org/feed.xml`. The checked-in
+example is inactive so a fresh checkout does not make an unexpected network
+request. Run collection from the repository root:
+
+```powershell
+.\.venv\Scripts\abundroid.exe collect
+```
+
+The command should name the Source, report it as `ok`, and create
+`output/items.csv` plus `output/source_runs.csv`. Run the same command a second
+time. The second summary should report `0 new`; the CSV should not gain a
+duplicate Item row.
+
+This step tests local CSV mode only. The legacy calendar path remains available
+as `.\.venv\Scripts\abundroid.exe run`; it reads `data/organizations.csv` and
+writes `output/events.csv`.
 
 ### 3. Create the Airtable base
 
-Create the tables and fields in [airtable-schema.md](airtable-schema.md):
+Open [Airtable](https://airtable.com/) in a browser and create or select the
+base that Abundroid will use. A new deployment may name it `Abundroid`.
+
+Create these five tables before adding linked-record fields:
 
 1. **Organizations**
 2. **Sources**
@@ -84,53 +193,183 @@ Create the tables and fields in [airtable-schema.md](airtable-schema.md):
 4. **Topics**
 5. **Source Runs**
 
+Then create every field with the exact name and type in
+[airtable-schema.md](airtable-schema.md). Airtable creates sample fields in a
+new table; rename or delete those fields rather than leaving similarly named
+duplicates. Pay particular attention to these contracts:
+
+- The primary fields are **Name**, **Name**, **Item UID**, **Topic**, and
+  **Run ID**, respectively.
+- **Sources -> Organization** links to exactly one **Organizations** record.
+- **Sources -> Organization Name** is a lookup of the linked Organization's
+  **Name**; do not type it manually.
+- **Source Runs -> Source** links to **Sources**.
+- The only **Sources -> Format** option needed now is lowercase `rss`.
+- Field names are case- and space-sensitive to the integration. Do not rename
+  fields such as **Default Kind**, **Published At**, or **Items Found**.
+
 Keep **Events** in an existing deployment because it supports the legacy
 `abundroid run` path. Retain **Run Log** if the base already uses it for
-history, but the current commands do not write it.
+history, but the current commands do not write it. A new deployment does not
+need to create either legacy table.
 
-Create the saved views and Airtable Interface described in the schema guide.
-This is deployment work, not a task for daily operators.
+Do not create the Interface yet. First validate table reads and writes in steps
+6 and 7; live records make the Interface easier to configure correctly.
 
 ### 4. Create an Airtable token
+
+On Airtable's website:
 
 1. Open [airtable.com/create/tokens](https://airtable.com/create/tokens).
 2. Create a token named `Abundroid`.
 3. Add `data.records:read` and `data.records:write` scopes.
 4. Restrict access to the Abundroid base.
-5. Store the token in the deployment secret store. Do not paste it into
-   Airtable or commit it to Git.
+5. Copy the token once and store it in a password manager until `.env` is
+   configured. Do not paste it into Airtable records, chat, or Git.
 
 ### 5. Configure environment variables
 
-Copy `.env.example` to `.env` for a local deployment and set:
+On Windows, return to PowerShell on the collection computer and confirm that it
+is still in the repository root. Copy the ignored template and open the copy in
+Notepad:
+
+```powershell
+Copy-Item .\.env.example .\.env
+notepad .\.env
+```
+
+On Ubuntu, run this from the repository root instead:
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+In nano, press `Ctrl+O`, then Enter to save; press `Ctrl+X` to close it.
+
+Replace only the two blank credential values:
 
 ```dotenv
 AIRTABLE_API_KEY=pat_your_token
 AIRTABLE_BASE_ID=app_your_base_id
 ```
 
-The base ID is the value beginning with `app` in the Airtable base URL. The
-default table names can be overridden with the variables listed in
-`.env.example`.
+Do not add quotes around either value. The token begins with `pat`; the base ID
+begins with `app` and appears in the Airtable base URL. Save and close the text
+editor. Abundroid loads `.env` from the current directory each time it starts,
+which is why commands must run from the repository root.
+
+The default table names already match this guide. Only uncomment a table-name
+override in `.env` when an existing base uses a different name. Never point
+`AIRTABLE_EVENTS_TABLE` at **Items**.
+
+Confirm that Git is ignoring the credential file:
+
+```powershell
+git status --short
+```
+
+The output must not include `.env`. Do not continue if it does.
 
 For GitHub Actions or another scheduler, store the token and base ID as secret
 environment variables rather than committing a `.env` file.
 
-### 6. Verify both paths
+### 6. Add the first Organization and Source
 
-Run the new collection path:
+In Airtable, create one **Organizations** record:
+
+| Field | Test value |
+|---|---|
+| Name | Name of the publisher being tested |
+| Website | Publisher's public homepage |
+| Active | Checked |
+| Stage | `Approved` |
+
+Create one linked **Sources** record:
+
+| Field | Test value |
+|---|---|
+| Name | A friendly name such as `News feed` |
+| Organization | Link to the Organization above |
+| URL | A real public RSS or Atom feed URL |
+| Format | `rss` |
+| Default Kind | Usually `article`, `post`, or `update` |
+| Active | Checked |
+
+Confirm that **Organization Name** fills itself from the link. Leave it alone if
+it is blank; fix the lookup definition instead. **Topics** may remain empty for
+the first test.
+
+### 7. Validate the live collection path
+
+First perform a read-only preview from PowerShell in the repository root:
 
 ```powershell
-abundroid collect
+.\.venv\Scripts\abundroid.exe collect --dry-run
 ```
 
-Confirm that a new record appears in **Items**, then run the command again and
-confirm it does not create a duplicate. Existing calendar deployments should
-also run `abundroid run` and confirm their **Events** queue still works.
+The Source should report `ok`, and parsed Items should print in the terminal.
+Dry-run reads Airtable and fetches the feed but writes neither **Items** nor
+**Source Runs**. If the command instead reads `data/sources.csv`, stop and check
+that `.env` is in the repository root and both credential values are present.
+
+Run the write path:
+
+```powershell
+.\.venv\Scripts\abundroid.exe collect
+```
+
+Confirm all of the following before continuing:
+
+1. The command exits without an error and reports the Source as `ok`.
+2. **Items** contains the feed entries with **Status = Needs Review**.
+3. **Source Runs** contains one linked record with **Result = Working** or
+   **No recent items**.
+4. **Item UID**, **Source Hash**, **First Seen**, and **Last Seen** are filled.
+
+Run the same command again. The Item count must not increase for unchanged feed
+entries, the terminal should report `0 new`, and one additional Source Run
+should appear.
+
+Edit one Item's **Title**, **Summary**, **Topics**, and **Status** in Airtable,
+then run collection a third time. Confirm that those reviewer-owned edits remain
+unchanged.
+
+Existing calendar deployments should separately run
+`.\.venv\Scripts\abundroid.exe run` and confirm their **Events** queue still
+works. New deployments should skip that compatibility check.
+
+### 8. Validate failure and pause behavior
+
+Add a second active Source linked to the same test Organization, but give it a
+deliberately invalid URL. Run collection and confirm that:
+
+- The command returns a failure status after attempting both Sources.
+- Items from the working Source are still retained.
+- The broken Source receives a **Source Runs** record with
+  **Result = Needs attention** and a useful **Error**.
+
+Then correct or deactivate the broken Source. Also create a Source with no
+Organization link and verify that collection skips it. Unlinked, inactive, and
+Organization-paused Sources are not fetched and do not receive a new Source Run.
+Their `Paused` state is inferred from **Active** and the Organization link, not
+written as a new attempt record.
+
+### 9. Create and test the operator Interface
+
+Create the saved views and **Abundroid Admin** Interface described in
+[airtable-schema.md](airtable-schema.md). Use the live test records to verify
+the Review Queue and Source Health pages. In Source Health, show the Source's
+**Active** value and related Source Runs sorted by **Started At**, newest first.
+
+Have someone who did not perform deployment use the Interface to add, edit,
+pause, archive, restore, and review a test Organization. Record any step that
+requires a raw table, terminal, or explanation from the deployer; those are
+validation findings rather than operator training failures.
 
 Automatic scheduling and source discovery are Phase 4 work. Until scheduling
 is configured, a technical operator must start collection with the command
-above; daily Airtable work still requires no terminal.
+above; daily Airtable review work still requires no terminal.
 
 ## Daily Operation: No Terminal
 
@@ -169,7 +408,7 @@ produces no Items.
 - Use **Archive** when the team no longer wants to monitor an organization.
   The action sets **Stage** to `Archived` and clears **Active**.
 - Archived organizations and their Sources disappear from normal active views,
-  but their Items and future Source Runs remain available.
+  but their Items and historical Source Runs remain available.
 - Use **Restore** to return an organization to `Approved`, then turn
   **Active** on when collection should resume. Sources that were individually
   paused remain paused.
@@ -200,16 +439,21 @@ replace it; a change is flagged for review.
 
 ### Check source health
 
-The collector records every collection attempt as a **Source Run** record. For local CSV runs, history is appended to `output/source_runs.csv` beside your items. For Airtable mode, run records are written to the **Source Runs** table, which drives the plain-language health status of each Source:
+The collector records every active collection attempt as a **Source Run**
+record. For local CSV runs, history is appended to `output/source_runs.csv`
+beside the Items file. For Airtable mode, run records are written to **Source
+Runs**. Read the latest related run together with the Source's **Active** value:
 
 | Status | Meaning | Operator action |
 |---|---|---|
 | `Working` | The last fetch succeeded and returned one or more valid items | None |
 | `No recent items` | Fetch succeeded but returned no items | Usually none; inspect if unexpected |
 | `Needs attention` | The source failed or its format changed | Open the latest Source Run and ask an advanced admin to fix the URL or format |
-| `Paused` | The Source or its Organization is inactive | None unless it should resume |
+| `Paused` | The Source or its Organization is inactive or unlinked; no new attempt is recorded | None unless it should resume |
 
-One broken Source does not stop other active Sources.
+One broken Source does not stop other active Sources from being collected,
+although the overall command returns a failure status so the problem is not
+hidden.
 
 ## Legacy Events Compatibility
 
@@ -227,20 +471,20 @@ The `migrate-events` subcommand copies legacy Event records into unified Items w
 
 ```powershell
 # CSV mode (local files)
-abundroid migrate-events --events data/events.csv --items output/items.csv
+.\.venv\Scripts\abundroid.exe migrate-events --events data/events.csv --items output/items.csv
 
 # Write the migrated records to the target CSV store (apply)
-abundroid migrate-events --events data/events.csv --items output/items.csv --apply
+.\.venv\Scripts\abundroid.exe migrate-events --events data/events.csv --items output/items.csv --apply
 ```
 
 If `AIRTABLE_API_KEY` and `AIRTABLE_BASE_ID` are set in your environment, the migration command operates on Airtable instead:
 
 ```powershell
 # Airtable preview mode
-abundroid migrate-events
+.\.venv\Scripts\abundroid.exe migrate-events
 
 # Airtable apply mode
-abundroid migrate-events --apply
+.\.venv\Scripts\abundroid.exe migrate-events --apply
 ```
 
 Without `--apply`, the tool runs in preview mode, performing no writes but displaying counts and warnings (e.g. invalid dates, missing required fields, unresolved duplicate links). With `--apply`, the converted Items are upserted into the target store. The migration is idempotent; running apply again does not overwrite reviewer edits or create duplicate Items.
@@ -249,7 +493,9 @@ Without `--apply`, the tool runs in preview mode, performing no writes but displ
 
 | Symptom | Action |
 |---|---|
-| `abundroid: command not found` | Activate the virtual environment and reinstall with `pip install -e .` |
+| `abundroid: command not found` | From the repository root, run `.\.venv\Scripts\abundroid.exe`; if it is missing, repeat the install command in step 1 |
+| `python` or `git` is not recognized | Install the missing prerequisite, close PowerShell, open it again, and repeat the version check |
+| Collection uses CSV after `.env` was created | Run from the repository root, confirm `.env` is there, and set both Airtable credential values without quotes |
 | Airtable returns `401` or `403` | Check the token, scopes, and base access |
 | Airtable reports an unknown field | Match field names and types to `airtable-schema.md` |
 | A Source is not collected | Confirm its Organization is `Approved` and Active, and the Source is Active |
