@@ -23,8 +23,6 @@ class AirtableSourceRunStore:
                 "Finished At": run.finish_time.isoformat(),
                 "Result": run.derive_health(),
                 "Items Found": run.items_found,
-                "Items New": run.items_new,
-                "Items Seen": run.items_seen,
                 "Error": run.error or "",
             }
             if run.source_id:

@@ -114,15 +114,7 @@ def run_item_pipeline(
     if set_duplicates and duplicate_links:
         set_duplicates(duplicate_links)
 
-    active_sources_count = len(active_attempts)
     for attempt in active_attempts:
-        if active_sources_count == 1 and attempt['result'] == 'success':
-            attempt['items_new'] = result.get('new', 0)
-            attempt['items_seen'] = result.get('seen', 0)
-        else:
-            attempt['items_new'] = 0
-            attempt['items_seen'] = 0
-
         source_run = SourceRun(
             run_id=attempt['run_id'],
             source_id=attempt['source'].record_id,
@@ -132,8 +124,6 @@ def run_item_pipeline(
             finish_time=attempt['finish_time'] or clock(),
             result=attempt['result'],
             items_found=attempt['items_found'],
-            items_new=attempt['items_new'],
-            items_seen=attempt['items_seen'],
             http_status=attempt['http_status'],
             error=attempt['error'],
         )

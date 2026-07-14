@@ -185,8 +185,6 @@ Open **Source Runs**:
 | Finished At | Date | Turn on **Include time** |
 | Result | Single select | Add `Working`, `No recent items`, `Needs attention` |
 | Items Found | Number | Integer, precision `0` |
-| Items New | Number | Integer, precision `0` |
-| Items Seen | Number | Integer, precision `0` |
 | HTTP Status | Number | Integer, precision `0` |
 | Error | Long text | Empty on success; actionable text on failure |
 

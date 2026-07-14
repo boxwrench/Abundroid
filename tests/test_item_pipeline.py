@@ -143,30 +143,7 @@ def test_pipeline_produces_source_runs_with_injections():
     assert run_success.items_found == 1
     assert run_success.start_time == mock_time
     assert run_success.finish_time == mock_time
-    # Since multiple active sources were run, counts must be 0
-    assert run_success.items_new == 0
-    assert run_success.items_seen == 0
-
     # Broken format run check
     run_broken = [r for r in runs if r.source_id == "recSrcBroken"][0]
     assert run_broken.result == "failure"
     assert "unknown source format: unknown" in run_broken.error
-
-
-def test_pipeline_allocates_counts_for_single_source():
-    store = RecordingStore()
-    sources = [
-        Source("Org A", "Single Active", "https://example.com/rss", "rss", active=True, record_id="recSingle"),
-    ]
-
-    result = run_item_pipeline(
-        sources,
-        store,
-        fetch=lambda url: "feed",
-        adapters={"rss": lambda text, src: [Item("Post", src.organization)]},
-    )
-
-    runs = result["source_runs"]
-    assert len(runs) == 1
-    assert runs[0].items_new == 1
-    assert runs[0].items_seen == 0

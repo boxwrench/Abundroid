@@ -5,6 +5,9 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from difflib import SequenceMatcher
+from typing import Iterator
+
+from abundroid.models import Item
 
 
 def _normalized(text: str) -> str:
@@ -18,6 +21,17 @@ def _days_between(a: datetime | None, b: datetime | None) -> int | None:
     return abs((a.date() - b.date()).days)
 
 
+def _comparison_pairs(
+    candidates: list[Item], existing_items: list[Item]
+) -> Iterator[tuple[Item, Item]]:
+    """Compare candidates without traversing persisted-to-persisted pairs."""
+    for index, left in enumerate(candidates):
+        for right_index in range(index + 1, len(candidates)):
+            yield left, candidates[right_index]
+        for right in existing_items:
+            yield left, right
+
+
 def flag_possible_item_duplicates(
     items,
     existing_items=(),
@@ -27,42 +41,38 @@ def flag_possible_item_duplicates(
 ) -> dict[str, str]:
     '''Flag likely duplicates, including items persisted by earlier runs.'''
     candidates = list(items)
-    all_items = candidates + list(existing_items)
-    candidate_ids = {id(item) for item in candidates}
+    persisted = list(existing_items)
     relationships: dict[str, str] = {}
 
-    for index, left in enumerate(all_items):
-        for right in all_items[index + 1:]:
-            if id(left) not in candidate_ids and id(right) not in candidate_ids:
-                continue
-            if not left.uid or not right.uid or left.uid == right.uid:
-                continue
+    for left, right in _comparison_pairs(candidates, persisted):
+        if not left.uid or not right.uid or left.uid == right.uid:
+            continue
 
-            left_url = getattr(left, 'canonical_url', '')
-            right_url = getattr(right, 'canonical_url', '')
-            same_url = bool(left_url and right_url and left_url == right_url)
-            left_title = _normalized(left.title)
-            right_title = _normalized(right.title)
-            if not same_url and (not left_title or not right_title):
-                continue
-            similarity = SequenceMatcher(
-                None, left_title, right_title
-            ).ratio()
-            if not same_url and similarity < title_threshold:
-                continue
+        left_url = getattr(left, 'canonical_url', '')
+        right_url = getattr(right, 'canonical_url', '')
+        same_url = bool(left_url and right_url and left_url == right_url)
+        left_title = _normalized(left.title)
+        right_title = _normalized(right.title)
+        if not same_url and (not left_title or not right_title):
+            continue
+        similarity = SequenceMatcher(
+            None, left_title, right_title
+        ).ratio()
+        if not same_url and similarity < title_threshold:
+            continue
 
-            distance = _days_between(
-                getattr(left, 'published_at', None),
-                getattr(right, 'published_at', None),
-            )
-            if not same_url and distance is not None and distance > publication_window_days:
-                continue
+        distance = _days_between(
+            getattr(left, 'published_at', None),
+            getattr(right, 'published_at', None),
+        )
+        if not same_url and distance is not None and distance > publication_window_days:
+            continue
 
-            if not left.possible_duplicate_of:
-                left.possible_duplicate_of = right.uid
-            if not right.possible_duplicate_of:
-                right.possible_duplicate_of = left.uid
-            relationships.setdefault(left.uid, right.uid)
-            relationships.setdefault(right.uid, left.uid)
+        if not left.possible_duplicate_of:
+            left.possible_duplicate_of = right.uid
+        if not right.possible_duplicate_of:
+            right.possible_duplicate_of = left.uid
+        relationships.setdefault(left.uid, right.uid)
+        relationships.setdefault(right.uid, left.uid)
 
     return relationships

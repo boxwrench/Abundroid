@@ -16,8 +16,6 @@ SOURCERUN_FIELDNAMES = [
     "finish_time",
     "result",
     "items_found",
-    "items_new",
-    "items_seen",
     "http_status",
     "error",
 ]
@@ -48,8 +46,6 @@ class SourceRunCsvStore:
                     "finish_time": run.finish_time.isoformat(),
                     "result": run.result,
                     "items_found": run.items_found,
-                    "items_new": run.items_new,
-                    "items_seen": run.items_seen,
                     "http_status": run.http_status if run.http_status is not None else "",
                     "error": run.error,
                 }

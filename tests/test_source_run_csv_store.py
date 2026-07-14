@@ -23,8 +23,6 @@ def test_csv_store_saves_runs_and_preserves_history(tmp_path):
         finish_time=now,
         result="success",
         items_found=5,
-        items_new=2,
-        items_seen=3,
     )
 
     # Save first run

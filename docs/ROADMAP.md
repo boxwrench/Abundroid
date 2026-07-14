@@ -69,6 +69,8 @@ Source is visible from the Interface.
 ## Scale and Handoff
 
 - Scale to 30-50 organizations and multiple Sources per organization.
+- Benchmark duplicate detection at expected Item volume before scaling, and add
+  candidate indexing only if measured runtime requires it.
 - Measure approval rate, edit rate, Source productivity, and reviewer effort.
 - Define backup, retention, archival, and credential-rotation policies.
 - Document ownership and hand the deployment to its operating team.

@@ -30,8 +30,6 @@ def test_airtable_store_saves_runs_correctly():
         finish_time=now,
         result="success",
         items_found=5,
-        items_new=2,
-        items_seen=3,
         http_status=200,
     )
 
@@ -45,8 +43,6 @@ def test_airtable_store_saves_runs_correctly():
     assert fields["Finished At"] == now.isoformat()
     assert fields["Result"] == "Working"
     assert fields["Items Found"] == 5
-    assert fields["Items New"] == 2
-    assert fields["Items Seen"] == 3
     assert fields["HTTP Status"] == 200
     assert fields["Error"] == ""
 

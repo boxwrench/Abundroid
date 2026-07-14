@@ -34,7 +34,7 @@ One reviewable publication with:
 
 ### Source Run
 
-One active Source attempt with timestamps, result, Item counts, optional HTTP
+One active Source attempt with timestamps, result, Items Found, optional HTTP
 status, and an actionable error.
 
 ## Implemented Collection Contract

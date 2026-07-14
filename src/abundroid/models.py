@@ -68,8 +68,6 @@ class SourceRun:
     finish_time: datetime
     result: str  # "success" | "failure"
     items_found: int
-    items_new: int = 0
-    items_seen: int = 0
     http_status: int | None = None
     error: str = ""
 
@@ -80,8 +78,8 @@ class SourceRun:
             raise ValueError("Finish time cannot be earlier than start time.")
         if self.result not in {"success", "failure"}:
             raise ValueError("Result must be success or failure.")
-        if min(self.items_found, self.items_new, self.items_seen) < 0:
-            raise ValueError("Item counts cannot be negative.")
+        if self.items_found < 0:
+            raise ValueError("Items found cannot be negative.")
         if self.result == "success" and self.error:
             raise ValueError("Successful runs cannot contain an error.")
 
