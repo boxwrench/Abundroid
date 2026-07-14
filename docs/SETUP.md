@@ -247,6 +247,18 @@ The Airtable Source name should report `ok`, and parsed Items should print in
 the terminal. If the local CSV Source name appears instead, confirm `.env` is in
 the repository root and both values are present.
 
+The exact content varies by feed, but a successful preview has this shape:
+
+```text
+[UPDATE] Housing reform update
+  Example Organization | Jul 14, 2026
+  A short description supplied by the feed.
+  Link: https://example.org/posts/1
+
+Example News: ok, 1 found
+Totals: 1 found, 1 new, 0 seen
+```
+
 Run the write path:
 
 ```powershell
@@ -293,7 +305,8 @@ Have someone who did not build it:
 
 1. Add and edit an Organization.
 2. Pause, restore, and archive it.
-3. Open Review and edit an Item.
+3. Open Review and confirm the title, publisher, date, description, and original
+   link can be scanned without opening a raw table; then edit the Item.
 4. Open Source Health and identify the broken Source and its error.
 
 Record every task that requires a raw table, terminal, or deployer explanation.
@@ -328,10 +341,13 @@ task outside the normal operator Interface.
 ### Review Items
 
 1. Open **Review**.
-2. Open Canonical URL or Source URL and compare it with the Item.
-3. Correct Title, Kind, Published At, Author, Summary, or Topics if necessary.
-4. Set Status to `Approved`, `Rejected`, or `Duplicate`.
-5. Add Reviewer Notes when another reviewer needs context.
+2. Scan the title, publisher, date, kind, topics, and Summary.
+3. Open Canonical URL and compare the original publication with the Item. A
+   missing original link is a Source-quality issue to report to the deployer;
+   Source URL points to the feed itself and is intentionally hidden.
+4. Correct Title, Kind, Published At, Author, Summary, or Topics if necessary.
+5. Set Status to `Approved`, `Rejected`, or `Duplicate`.
+6. Add Reviewer Notes when another reviewer needs context.
 
 Do not edit Item UID, Source Item ID, Source Hash, First Seen, or Last Seen.
 

@@ -3,6 +3,7 @@
 import argparse
 import os
 import sys
+import textwrap
 from pathlib import Path
 
 from abundroid.classifier import load_topics_csv, topics_from_airtable
@@ -45,16 +46,43 @@ def _airtable_credentials():
 class DryRunItemStore:
     """Print collected Items instead of persisting them."""
 
+    DESCRIPTION_LIMIT = 360
+
     def recent_items(self, since=None):
         return []
 
     def upsert(self, items):
         for item in items:
-            published = item.published_at.isoformat() if item.published_at else "No date"
-            print(
-                f"  [{item.kind}] {item.title} ({published}) - "
-                f"{item.canonical_url} [{item.uid}]"
-            )
+            if item.published_at:
+                published = (
+                    f"{item.published_at.strftime('%b')} "
+                    f"{item.published_at.day}, {item.published_at.year}"
+                )
+            else:
+                published = "No date"
+
+            description = " ".join((item.summary or "").split())
+            if not description:
+                description = "No description supplied by source."
+            elif len(description) > self.DESCRIPTION_LIMIT:
+                cutoff = description.rfind(" ", 0, self.DESCRIPTION_LIMIT - 3)
+                if cutoff < 1:
+                    cutoff = self.DESCRIPTION_LIMIT - 3
+                description = f"{description[:cutoff].rstrip()}..."
+
+            publisher = item.publisher or "Unknown publisher"
+            link = item.canonical_url or "No original link supplied by source."
+            kind = (item.kind or "other").upper()
+            print(f"[{kind}] {item.title}")
+            print(f"  {publisher} | {published}")
+            if item.author:
+                print(f"  By {item.author}")
+            if item.topics:
+                print(f"  Topics: {', '.join(item.topics)}")
+            for line in textwrap.wrap(description, width=76):
+                print(f"  {line}")
+            print(f"  Link: {link}")
+            print()
         return {"new": len(items), "seen": 0}
 
 

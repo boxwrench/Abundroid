@@ -13,6 +13,7 @@ RSS = '''<?xml version='1.0'?>
 <guid>post-1</guid>
 <link>https://example.com/posts/1</link>
 <pubDate>Thu, 09 Jul 2026 17:00:00 GMT</pubDate>
+<author>Policy Desk</author>
 <description>New zoning legislation.</description>
 </item></channel></rss>'''
 
@@ -76,7 +77,13 @@ def test_collect_dry_run_does_not_write(tmp_path, monkeypatch, capsys):
 
     assert result == 0
     assert not output.exists()
-    assert '[update] Housing reform update' in capsys.readouterr().out
+    report = capsys.readouterr().out
+    assert '[UPDATE] Housing reform update' in report
+    assert 'Example Org | Jul 9, 2026' in report
+    assert 'By Policy Desk' in report
+    assert 'New zoning legislation.' in report
+    assert 'Link: https://example.com/posts/1' in report
+    assert '[source:' not in report
 
 
 def test_collect_partial_airtable_credentials_fails(tmp_path, monkeypatch, capsys):

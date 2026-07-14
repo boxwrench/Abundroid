@@ -260,13 +260,19 @@ action, and optionally require confirmation for Archive. See Airtable's
 1. Add a **Record review** page using **Items** as the source table.
 2. Filter it to `Status is Needs Review`.
 3. Sort by **Published At**, newest first.
-4. Show Canonical URL, Source URL, Title, Publisher, Kind, Published At,
-   Author, Summary, Topics, Status, Reviewer Notes, Changed, and Possible
-   Duplicate Of.
-5. Make Title, Kind, Published At, Author, Summary, Topics, Status, and Reviewer
+4. Treat the page as a publication report rather than a database record. Make
+   **Title** the prominent heading. Place Publisher, Published At, Kind, Author,
+   and Topics together as supporting information.
+5. Show **Summary** as wrapped text, followed immediately by **Canonical URL**
+   so the original publication is easy to open. Keep Status and Reviewer Notes
+   near the review controls.
+6. Show Changed and Possible Duplicate Of as attention indicators, not as the
+   main content.
+7. Make Title, Kind, Published At, Author, Summary, Topics, Status, and Reviewer
    Notes editable.
-6. Keep Item UID, Source Item ID, Source Hash, First Seen, and Last Seen hidden
-   or view-only.
+8. Hide Item UID, Source Item ID, Source URL, Source Hash, First Seen, and Last
+   Seen from the normal review page. They may remain view-only in an
+   administrator-only record detail.
 
 ### Source Health Page
 
