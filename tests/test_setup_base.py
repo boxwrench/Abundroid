@@ -1,5 +1,6 @@
 # tests/test_setup_base.py
 from abundroid import setup_base
+from abundroid import airtable_schema as schema
 
 
 def test_env_text_appends_when_absent():
@@ -59,3 +60,118 @@ def test_write_preserves_existing_env_token(tmp_path):
     assert "pat_example_token" not in result_text
     # Exactly one AIRTABLE_BASE_ID line
     assert result_text.count("AIRTABLE_BASE_ID=") == 1
+
+
+class FakeField:
+    def __init__(self, name, fid):
+        self.name = name
+        self.id = fid
+
+
+class FakeSchema:
+    def __init__(self, fields):
+        self.fields = fields
+
+
+class FakeTable:
+    def __init__(self, name, tid):
+        self.name = name
+        self.id = tid
+        self._fields = []
+        self.created_records = []
+
+    def add_initial_field(self, name):
+        self._fields.append(FakeField(name, f"fld_{self.name}_{name}".replace(" ", "")))
+
+    def schema(self):
+        return FakeSchema(list(self._fields))
+
+    def create_field(self, name, field_type, options=None):
+        field = FakeField(name, f"fld_{self.name}_{name}".replace(" ", ""))
+        self._fields.append(field)
+        self.calls_append(("create_field", self.name, name, field_type, options))
+        return field
+
+    def create(self, fields):
+        self.created_records.append(fields)
+        rec_id = f"rec_{self.name}_{len(self.created_records)}"
+        self.calls_append(("create", self.name, fields))
+        return {"id": rec_id}
+
+    calls = None
+
+    def calls_append(self, item):
+        FakeTable.calls.append(item)
+
+
+class FakeBase:
+    def __init__(self, tables):
+        self.id = "appFAKE123"
+        self._tables = tables
+
+    def tables(self):
+        return self._tables
+
+
+class FakeApi:
+    def __init__(self):
+        self.create_base_args = None
+
+    def create_base(self, workspace_id, name, tables):
+        self.create_base_args = (workspace_id, name, tables)
+        built = []
+        for spec in tables:
+            t = FakeTable(spec["name"], f"tbl_{spec['name']}".replace(" ", ""))
+            for field in spec["fields"]:
+                t.add_initial_field(field["name"])
+            built.append(t)
+        return FakeBase(built)
+
+
+def test_build_base_creates_base_with_all_tables_and_returns_id():
+    FakeTable.calls = []
+    api = FakeApi()
+    base_id = setup_base.build_base(api, "wspTEST", seed=False)
+    assert base_id == "appFAKE123"
+    ws, name, tables = api.create_base_args
+    assert ws == "wspTEST"
+    assert name == "Abundroid"
+    assert [t["name"] for t in tables] == [
+        "Organizations", "Sources", "Items", "Topics", "Source Runs",
+    ]
+
+
+def test_build_base_adds_link_then_lookup_fields():
+    FakeTable.calls = []
+    api = FakeApi()
+    setup_base.build_base(api, "wspTEST", seed=False)
+    field_calls = [c for c in FakeTable.calls if c[0] == "create_field"]
+    types = [c[3] for c in field_calls]
+    # Link fields created before lookup fields
+    assert types == ["multipleRecordLinks", "multipleRecordLinks", "multipleLookupValues"]
+    org_link = field_calls[0]
+    assert org_link[1:3] == ("Sources", "Organization")
+    assert org_link[4]["linkedTableId"] == "tbl_Organizations"
+    assert org_link[4]["prefersSingleRecordLink"] is True
+    lookup = field_calls[2]
+    assert lookup[4]["recordLinkFieldId"] == "fld_Sources_Organization"
+    assert lookup[4]["fieldIdInLinkedTable"] == "fld_Organizations_Name"
+
+
+def test_build_base_seeds_hypertext_with_link():
+    FakeTable.calls = []
+    api = FakeApi()
+    setup_base.build_base(api, "wspTEST", seed=True)
+    creates = [c for c in FakeTable.calls if c[0] == "create"]
+    org_create = next(c for c in creates if c[1] == "Organizations")
+    assert org_create[2]["Name"] == "Hypertext"
+    src_create = next(c for c in creates if c[1] == "Sources")
+    assert src_create[2]["URL"] == "https://hypertext.niskanencenter.org/feed/"
+    assert src_create[2]["Organization"] == ["rec_Organizations_1"]
+
+
+def test_build_base_seed_false_creates_no_records():
+    FakeTable.calls = []
+    api = FakeApi()
+    setup_base.build_base(api, "wspTEST", seed=False)
+    assert [c for c in FakeTable.calls if c[0] == "create"] == []
