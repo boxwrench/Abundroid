@@ -106,16 +106,32 @@ installing Python 3.11 or newer and Git with your package manager.
 ### 2. Test Collection Locally
 
 Without Airtable credentials, Abundroid reads `data/sources.csv` and writes
-`output/items.csv`. Open `data/sources.csv` in a text editor. Keep the header,
-replace the example row with a real RSS or Atom feed, and set `active` to
-`true`:
+`output/items.csv`.
+
+A **feed** is a machine-readable list of a publisher's latest items, offered at a
+fixed web address in RSS or Atom format. It is not the publisher's normal
+homepage. To find one:
+
+1. Look for a **Feed**, **RSS**, or **Subscribe** link on the publisher's site,
+   often in the footer or on a subscribe page.
+2. If none is visible, add `/feed/` to the site address and open it in a
+   browser. Many sites, including WordPress and Substack publications, answer
+   there.
+3. A working feed opens as plain XML text beginning with `<?xml` or `<rss`, not
+   as a styled web page.
+
+For example, the Niskanen Center journal **Hypertext** has the homepage
+`https://hypertext.niskanencenter.org`, and its feed is
+`https://hypertext.niskanencenter.org/feed/`.
+
+Open `data/sources.csv` in a text editor. Keep the header, replace the example
+row with a real feed, and set `active` to `true`. Put the feed address in the
+`url` column, not the homepage:
 
 ```csv
 organization,name,url,format,default_kind,active,notes
-Example Organization,News feed,https://example.org/feed.xml,rss,article,true,
+Hypertext,Hypertext journal feed,https://hypertext.niskanencenter.org/feed/,rss,article,true,
 ```
-
-Replace the example URL with a real feed URL.
 
 Windows:
 

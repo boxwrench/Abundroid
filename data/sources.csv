@@ -1,2 +1,2 @@
 organization,name,url,format,default_kind,active,notes
-Example Organization,Example publication feed,https://example.com/feed.xml,rss,article,false,Replace with a real public RSS or Atom feed and set active to true
+Hypertext,Hypertext journal feed,https://hypertext.niskanencenter.org/feed/,rss,article,true,Niskanen Center journal on public goods competitive markets and state capacity
