@@ -31,3 +31,31 @@ def test_write_creates_env_from_example(tmp_path):
     text = env.read_text(encoding="utf-8")
     assert "AIRTABLE_BASE_ID=appXYZ" in text
     assert "AIRTABLE_API_KEY=pat_your_token" in text
+
+
+def test_write_preserves_existing_env_token(tmp_path):
+    """Test that real tokens in existing .env are preserved unchanged when updating base ID."""
+    # Create .env.example to prove it's NOT used when .env exists
+    example = tmp_path / ".env.example"
+    example.write_text("AIRTABLE_API_KEY=pat_example_token\nAIRTABLE_BASE_ID=app_your_base_id\n", encoding="utf-8")
+
+    # Create pre-existing .env with real secret and stale base id
+    env = tmp_path / ".env"
+    env.write_text("AIRTABLE_API_KEY=pat_real_secret_value\nAIRTABLE_BASE_ID=appOLD000\n", encoding="utf-8")
+
+    # Update the base id
+    setup_base.write_base_id_to_env("appNEW777", env_path=str(env), example_path=str(example))
+
+    # Verify the result
+    result_text = env.read_text(encoding="utf-8")
+
+    # Real token must be preserved unchanged (byte-for-byte)
+    assert "AIRTABLE_API_KEY=pat_real_secret_value" in result_text
+    # New base id must be present
+    assert "AIRTABLE_BASE_ID=appNEW777" in result_text
+    # Old base id must be gone
+    assert "appOLD000" not in result_text
+    # Example API key must NOT appear (proves .env.example wasn't used)
+    assert "pat_example_token" not in result_text
+    # Exactly one AIRTABLE_BASE_ID line
+    assert result_text.count("AIRTABLE_BASE_ID=") == 1
