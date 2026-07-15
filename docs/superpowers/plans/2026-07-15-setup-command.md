@@ -800,6 +800,7 @@ git commit -m "feat: wire up abundroid setup subcommand"
 **Files:**
 - Modify: `docs/SETUP.md`
 - Modify: `docs/airtable-schema.md`
+- Modify: `README.md` (the "technical deployer" description)
 - Modify: `.env.example` (only if it lacks an `AIRTABLE_BASE_ID` line to upsert)
 
 **Interfaces:** none (docs only).
@@ -833,10 +834,14 @@ export AIRTABLE_WORKSPACE_ID=wsp_your_workspace
 
 At the top of `docs/airtable-schema.md`, add a note: "You can create everything in sections 1–8 automatically with `abundroid setup` (see SETUP.md). Follow the manual steps below only if you prefer to build by hand or need to understand the schema. Sections 9–12 (views, Interface, token) are manual either way."
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Update the README deployer description**
+
+In `README.md`, the "Who needs technical knowledge?" paragraph currently reads that the deployer "creates the Airtable fields ... and manually starts collection." Change it to reflect the command: the deployer runs `abundroid setup` to create the base, tables, fields, and seed, then builds the views and Interface and creates the runtime token. Keep the sentence accurate to what `setup` does (schema + seed only; views/Interface/token remain manual).
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add docs/SETUP.md docs/airtable-schema.md .env.example
+git add docs/SETUP.md docs/airtable-schema.md README.md .env.example
 git commit -m "docs: promote abundroid setup as the primary Airtable path"
 ```
 
