@@ -101,3 +101,33 @@ SIMPLE_TABLES = [
         ],
     },
 ]
+
+LINK_FIELDS = [
+    {"table": "Sources", "name": "Organization", "linked_table": "Organizations", "single": True},
+    {"table": "Source Runs", "name": "Source", "linked_table": "Sources", "single": True},
+]
+
+LOOKUP_FIELDS = [
+    {
+        "table": "Sources",
+        "name": "Organization Name",
+        "via_link_field": "Organization",
+        "linked_table": "Organizations",
+        "linked_field": "Name",
+    },
+]
+
+SEED_ORGANIZATION = {
+    "Name": "Hypertext",
+    "Website": "https://hypertext.niskanencenter.org",
+    "Active": True,
+    "Stage": "Approved",
+}
+
+SEED_SOURCE = {
+    "Name": "Hypertext journal feed",
+    "URL": "https://hypertext.niskanencenter.org/feed/",
+    "Format": "rss",
+    "Default Kind": "article",
+    "Active": True,
+}

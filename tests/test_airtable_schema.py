@@ -68,3 +68,31 @@ def test_no_link_or_lookup_fields_in_simple_tables():
     for table in schema.SIMPLE_TABLES:
         for field in table["fields"]:
             assert field["type"] not in ("multipleRecordLinks", "multipleLookupValues")
+
+
+def test_link_fields_cover_organization_and_source():
+    by_name = {(l["table"], l["name"]): l for l in schema.LINK_FIELDS}
+    org = by_name[("Sources", "Organization")]
+    assert org["linked_table"] == "Organizations" and org["single"] is True
+    src = by_name[("Source Runs", "Source")]
+    assert src["linked_table"] == "Sources" and src["single"] is True
+
+
+def test_lookup_field_is_organization_name():
+    lookup = schema.LOOKUP_FIELDS[0]
+    assert lookup == {
+        "table": "Sources",
+        "name": "Organization Name",
+        "via_link_field": "Organization",
+        "linked_table": "Organizations",
+        "linked_field": "Name",
+    }
+
+
+def test_seed_uses_hypertext_real_feed_url():
+    assert schema.SEED_ORGANIZATION["Name"] == "Hypertext"
+    assert schema.SEED_ORGANIZATION["Stage"] == "Approved"
+    assert schema.SEED_ORGANIZATION["Active"] is True
+    assert schema.SEED_SOURCE["URL"] == "https://hypertext.niskanencenter.org/feed/"
+    assert schema.SEED_SOURCE["Format"] == "rss"
+    assert "Organization" not in schema.SEED_SOURCE  # link added by builder
