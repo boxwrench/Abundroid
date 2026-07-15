@@ -71,7 +71,7 @@ def test_no_link_or_lookup_fields_in_simple_tables():
 
 
 def test_link_fields_cover_organization_and_source():
-    by_name = {(l["table"], l["name"]): l for l in schema.LINK_FIELDS}
+    by_name = {(link["table"], link["name"]): link for link in schema.LINK_FIELDS}
     org = by_name[("Sources", "Organization")]
     assert org["linked_table"] == "Organizations" and org["single"] is True
     src = by_name[("Source Runs", "Source")]

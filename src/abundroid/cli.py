@@ -205,8 +205,9 @@ def run_setup(args):
         )
         return 1
 
+    print(f"Created base {base_id}.")
     setup_base.write_base_id_to_env(base_id)
-    print(f"Created base {base_id} and wrote AIRTABLE_BASE_ID to .env.")
+    print("Wrote AIRTABLE_BASE_ID to .env.")
     print("Next steps (not automatable via the Airtable API):")
     print("  1. Build the 9 saved views (airtable-schema.md section 9).")
     print("  2. Build the 3 Interface pages (airtable-schema.md sections 10-11).")
