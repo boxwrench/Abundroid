@@ -186,9 +186,10 @@ def run_setup(args):
     workspace = os.environ.get("AIRTABLE_WORKSPACE_ID", "").strip()
     if not token or not workspace:
         print(
-            "Error: set AIRTABLE_SETUP_TOKEN (a one-time token with "
-            "schema.bases:write) and AIRTABLE_WORKSPACE_ID (from the Airtable "
-            "URL, the wsp... segment). Do not put these in .env.",
+            "Error: set AIRTABLE_SETUP_TOKEN (a one-time token with scopes "
+            "schema.bases:write, schema.bases:read, and data.records:write) and "
+            "AIRTABLE_WORKSPACE_ID (from the Airtable URL, the wsp... segment). "
+            "Do not put these in .env.",
             file=sys.stderr,
         )
         return 1

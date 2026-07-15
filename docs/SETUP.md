@@ -161,9 +161,11 @@ three steps stay manual (sections 9 through 12 of the
 [Airtable build guide](airtable-schema.md)).
 
 1. Open Airtable's [Developer Hub token page](https://airtable.com/create/tokens)
-   and create a one-time token scoped to `schema.bases:write`, with access to
-   the workspace that should own Abundroid. The base does not exist yet, so
-   you cannot scope the token to a base. Copy the value beginning with `pat`.
+   and create a one-time token with three scopes: `schema.bases:write` and
+   `schema.bases:read` to create and read the base, tables, and fields, and
+   `data.records:write` to write the Hypertext seed rows. Give it access to the
+   workspace that should own Abundroid. The base does not exist yet, so you
+   cannot scope the token to a base. Copy the value beginning with `pat`.
 2. Find your workspace ID: open Airtable, select the workspace, and read the
    `wsp...` segment from the browser address bar.
 3. Export both values and run `setup`. Do not put `AIRTABLE_SETUP_TOKEN` in
