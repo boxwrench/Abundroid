@@ -235,11 +235,12 @@ def test_collect_fails_when_saving_runs_fails(tmp_path, monkeypatch, capsys):
     assert "Error saving source runs: Disk Full" in capsys.readouterr().err
 
 
-def test_help_exposes_only_the_collect_command(capsys):
+def test_help_exposes_the_collect_command(capsys):
     assert main([]) == 0
 
     output = capsys.readouterr().out
-    assert "{collect}" in output
+    assert "{collect,setup}" in output
+    assert "collect" in output
 
 
 def test_module_is_runnable_via_python_dash_m():

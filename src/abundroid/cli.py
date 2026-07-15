@@ -6,6 +6,7 @@ import sys
 import textwrap
 from pathlib import Path
 
+from abundroid import setup_base
 from abundroid.classifier import load_topics_csv, topics_from_airtable
 from abundroid.item_pipeline import run_item_pipeline
 from abundroid.stores.item_airtable_store import (
@@ -173,6 +174,48 @@ def run_collect(args):
     return 1 if any_failed else 0
 
 
+def _make_setup_api(token):
+    import pyairtable
+
+    return pyairtable.Api(token)
+
+
+def run_setup(args):
+    """Create the Abundroid Airtable base from the declarative schema."""
+    token = os.environ.get("AIRTABLE_SETUP_TOKEN", "").strip()
+    workspace = os.environ.get("AIRTABLE_WORKSPACE_ID", "").strip()
+    if not token or not workspace:
+        print(
+            "Error: set AIRTABLE_SETUP_TOKEN (a one-time token with "
+            "schema.bases:write) and AIRTABLE_WORKSPACE_ID (from the Airtable "
+            "URL, the wsp... segment). Do not put these in .env.",
+            file=sys.stderr,
+        )
+        return 1
+
+    api = _make_setup_api(token)
+    try:
+        base_id = setup_base.build_base(api, workspace, seed=not args.no_seed)
+    except Exception as exc:
+        print(
+            f"Error creating base: {exc}\n"
+            "If a partial 'Abundroid' base was created, delete it in Airtable "
+            "before running setup again.",
+            file=sys.stderr,
+        )
+        return 1
+
+    setup_base.write_base_id_to_env(base_id)
+    print(f"Created base {base_id} and wrote AIRTABLE_BASE_ID to .env.")
+    print("Next steps (not automatable via the Airtable API):")
+    print("  1. Build the 9 saved views (airtable-schema.md section 9).")
+    print("  2. Build the 3 Interface pages (airtable-schema.md sections 10-11).")
+    print("  3. Create the minimal runtime token: data.records:read + "
+          "data.records:write, scoped to this base (section 12).")
+    print("  4. Revoke the AIRTABLE_SETUP_TOKEN now that setup is complete.")
+    return 0
+
+
 def main(argv=None):
     """Parse arguments and run the requested command."""
     load_env()
@@ -203,9 +246,20 @@ def main(argv=None):
         help="Fetch and parse Items without writing them",
     )
 
+    setup_parser = subparsers.add_parser(
+        "setup", help="Create the Abundroid Airtable base, fields, and seed rows"
+    )
+    setup_parser.add_argument(
+        "--no-seed",
+        action="store_true",
+        help="Skip creating the Hypertext example Organization and Source",
+    )
+
     args = parser.parse_args(argv)
     if args.command == "collect":
         return run_collect(args)
+    if args.command == "setup":
+        return run_setup(args)
     parser.print_help()
     return 0
 
