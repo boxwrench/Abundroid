@@ -36,9 +36,11 @@ changes.
 
 ## Who needs technical knowledge?
 
-One technical deployer installs Abundroid, creates the Airtable fields, stores
-the access token, and manually starts collection. Scheduled runs arrive in
-Phase 4.
+One technical deployer installs Abundroid and runs `abundroid setup` to create
+the Airtable base, tables, fields, and the Hypertext example seed. The
+deployer then builds the saved views and the Interface, creates the runtime
+access token, stores it, and manually starts collection. Scheduled runs arrive
+in Phase 4.
 Routine editorial and organization-management work then happens in an Airtable
 Interface and requires no terminal:
 

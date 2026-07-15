@@ -151,7 +151,51 @@ report `0 new`, and `items.csv` must not gain duplicate rows.
 
 ### 3. Build the Airtable Base and Interface
 
-Open [Build the Abundroid Airtable Base](airtable-schema.md) in a second browser
+#### Automated: `abundroid setup` (recommended)
+
+`abundroid setup` calls the Airtable metadata API to create the base, all five
+tables, every field, every select option, and the Hypertext example
+Organization and Source, then writes the resulting base ID into `.env`. It
+does **not** create views, the Interface, or the runtime access token; those
+three steps stay manual (sections 9 through 12 of the
+[Airtable build guide](airtable-schema.md)).
+
+1. Open Airtable's [Developer Hub token page](https://airtable.com/create/tokens)
+   and create a one-time token scoped to `schema.bases:write`, with access to
+   the workspace that should own Abundroid. The base does not exist yet, so
+   you cannot scope the token to a base. Copy the value beginning with `pat`.
+2. Find your workspace ID: open Airtable, select the workspace, and read the
+   `wsp...` segment from the browser address bar.
+3. Export both values and run `setup`. Do not put `AIRTABLE_SETUP_TOKEN` in
+   `.env`; it is a one-time credential, not the runtime one.
+
+```powershell
+# Windows
+$env:AIRTABLE_SETUP_TOKEN = "pat_one_time_schema_token"
+$env:AIRTABLE_WORKSPACE_ID = "wsp_your_workspace"
+.\.venv\Scripts\abundroid.exe setup
+```
+
+```bash
+# Ubuntu or macOS
+export AIRTABLE_SETUP_TOKEN=pat_one_time_schema_token
+export AIRTABLE_WORKSPACE_ID=wsp_your_workspace
+./.venv/bin/abundroid setup
+```
+
+`setup` prints the created base ID and confirms it wrote `AIRTABLE_BASE_ID` to
+`.env`. Pass `--no-seed` to skip the Hypertext example Organization and
+Source. Continue with sections 9 through 12 of the
+[Airtable build guide](airtable-schema.md#9-add-the-minimum-saved-views) to
+build the nine saved views, publish the three-page **Abundroid Admin**
+Interface, and create the runtime access token. Revoke
+`AIRTABLE_SETUP_TOKEN` once setup succeeds; it is no longer needed.
+
+#### Manual fallback
+
+Prefer to build the base by hand, or want to understand the schema before
+automating it? Open
+[Build the Abundroid Airtable Base](airtable-schema.md) in a second browser
 tab and follow sections 1 through 11 in order. That guide explains Airtable
 terminology and every click required to:
 
@@ -168,9 +212,11 @@ names, capitalization, and spaces must match exactly.
 
 ### 4. Create the Airtable Token and Find the Base ID
 
-Follow sections 12 and 13 of the
-[Airtable build guide](airtable-schema.md#12-create-the-airtable-personal-access-token).
-You will finish with:
+If you ran `abundroid setup`, the base ID is already written to `.env`; follow
+only section 12 of the
+[Airtable build guide](airtable-schema.md#12-create-the-airtable-personal-access-token)
+to create the runtime token. If you built the base manually, follow sections
+12 and 13. Either way you will finish with:
 
 - A secret personal access token beginning with `pat`.
 - A base ID beginning with `app`.
@@ -180,6 +226,10 @@ access restricted to the Abundroid base. Store the token in a password manager.
 Do not put it in Airtable records, chat, screenshots, or Git.
 
 ### 5. Configure `.env`
+
+If `abundroid setup` already created `.env` for you, skip the copy step below
+and open the existing file directly; `AIRTABLE_BASE_ID` is already set and you
+only need to add `AIRTABLE_API_KEY`.
 
 On Windows, from the repository root:
 
