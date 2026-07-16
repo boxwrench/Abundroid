@@ -42,6 +42,10 @@ def _sources_file(tmp_path):
 def _clear_airtable(monkeypatch):
     monkeypatch.delenv('AIRTABLE_API_KEY', raising=False)
     monkeypatch.delenv('AIRTABLE_BASE_ID', raising=False)
+    # A real .env in the repo root (present after `abundroid setup` writes
+    # AIRTABLE_BASE_ID) would otherwise be reloaded by main() and repopulate
+    # credentials, breaking CSV-mode collection tests. Keep the env clean.
+    monkeypatch.setattr('abundroid.cli.load_env', lambda *args, **kwargs: None)
 
 
 def test_collect_writes_items_and_is_idempotent(tmp_path, monkeypatch, capsys):
@@ -87,6 +91,7 @@ def test_collect_dry_run_does_not_write(tmp_path, monkeypatch, capsys):
 
 
 def test_collect_partial_airtable_credentials_fails(tmp_path, monkeypatch, capsys):
+    _clear_airtable(monkeypatch)
     sources = _sources_file(tmp_path)
     output = tmp_path / 'items.csv'
 
