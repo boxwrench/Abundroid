@@ -72,27 +72,48 @@ Recorded from stakeholder feedback during live validation. These are desired
 directions, not committed scope. Each needs its own design pass before work
 begins, and none preempts the current validation milestone.
 
+**Prefer tracking curators before building adapters.** For both directions
+below, the first move reuses the existing RSS/Atom pipeline to track people who
+already curate the material (Tier 1, no new code); a structured-source adapter
+(Tier 2) is warranted only for coverage the curators miss. This keeps "reliable
+first, useful second" and avoids new ingestion code until a real gap justifies
+it. Tier 1 sources also count toward the current validation milestone rather
+than expanding it.
+
 ### Event tracking
 
 Operators want to track events, not only publications. The Item model already
-carries the needed fields (`Kind = event`, Scheduled Start, Scheduled End,
-Location), so events can join the single Item stream rather than forming a
-separate pipeline. The earlier calendar pipeline was removed as undeployed;
-reinstating event ingestion should reuse those scheduled-item fields and the
-same identity, review, and archive machinery.
+carries the fields for it (`Kind = event`, Scheduled Start, Scheduled End,
+Location), so events join the single Item stream rather than a separate
+pipeline. The earlier calendar pipeline was removed as undeployed; reinstating
+it should reuse those scheduled-item fields and the same identity, review, and
+archive machinery.
+
+- **Tier 1 — track event publishers (now, no new code).** Organizations that
+  already announce or aggregate events through RSS or newsletters enter the
+  existing pipeline as Items, populating the scheduled-item fields with whatever
+  the feed provides.
+- **Tier 2 — structured calendars (later, needs an adapter).** For reliable
+  start, end, and location data: iCal/ICS calendar feeds, Legistar meeting
+  calendars, and event platforms.
 
 ### Local legislation
 
-There is demand to track local legislation and the public meetings attached to
-it. This is a new domain beyond RSS or Atom and needs a dedicated source
-adapter.
+There is demand to track abundance-relevant legislation and the public meetings
+attached to it.
 
-**Candidate approach: Legistar.** Many local governments run Granicus Legistar,
-which exposes a Web API (legislative matters, agenda items, meetings, votes) and
-per-jurisdiction iCal or RSS calendar feeds. One Legistar adapter could feed
-both the legislation need (matters as Items) and the event-tracking need
-(meetings as scheduled Items). Evaluate the Legistar Web API and its feed
-formats in a design pass before committing.
+- **Tier 1 — track the curators (now, no new code).** Organizations already
+  publish curated legislative updates as posts, newsletters, and roundups;
+  adding their feeds as Sources brings this in through the existing pipeline.
+  Candidate curators to check for feeds: Sightline Institute, Institute for
+  Progress, Employ America, Mercatus, Center for Growth and Opportunity, EIG,
+  YIMBY organizations, and the Substack roundups many of them run.
+- **Tier 2 — structured legislative data (later, needs an adapter).** For
+  systematic coverage the curators miss: Granicus **Legistar** exposes a Web API
+  and per-jurisdiction iCal/RSS feeds for municipal matters and meetings;
+  **OpenStates/Plural** and **LegiScan** cover all fifty state legislatures via
+  API. One Legistar adapter would also serve Tier 2 events (meetings as
+  scheduled Items). Evaluate these in a design pass before committing.
 
 ## Scale and Handoff
 
