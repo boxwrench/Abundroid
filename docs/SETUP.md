@@ -106,16 +106,32 @@ installing Python 3.11 or newer and Git with your package manager.
 ### 2. Test Collection Locally
 
 Without Airtable credentials, Abundroid reads `data/sources.csv` and writes
-`output/items.csv`. Open `data/sources.csv` in a text editor. Keep the header,
-replace the example row with a real RSS or Atom feed, and set `active` to
-`true`:
+`output/items.csv`.
+
+A **feed** is a machine-readable list of a publisher's latest items, offered at a
+fixed web address in RSS or Atom format. It is not the publisher's normal
+homepage. To find one:
+
+1. Look for a **Feed**, **RSS**, or **Subscribe** link on the publisher's site,
+   often in the footer or on a subscribe page.
+2. If none is visible, add `/feed/` to the site address and open it in a
+   browser. Many sites, including WordPress and Substack publications, answer
+   there.
+3. A working feed opens as plain XML text beginning with `<?xml` or `<rss`, not
+   as a styled web page.
+
+For example, the Niskanen Center journal **Hypertext** has the homepage
+`https://hypertext.niskanencenter.org`, and its feed is
+`https://hypertext.niskanencenter.org/feed/`.
+
+Open `data/sources.csv` in a text editor. Keep the header, replace the example
+row with a real feed, and set `active` to `true`. Put the feed address in the
+`url` column, not the homepage:
 
 ```csv
 organization,name,url,format,default_kind,active,notes
-Example Organization,News feed,https://example.org/feed.xml,rss,article,true,
+Hypertext,Hypertext journal feed,https://hypertext.niskanencenter.org/feed/,rss,article,true,
 ```
-
-Replace the example URL with a real feed URL.
 
 Windows:
 
@@ -135,7 +151,53 @@ report `0 new`, and `items.csv` must not gain duplicate rows.
 
 ### 3. Build the Airtable Base and Interface
 
-Open [Build the Abundroid Airtable Base](airtable-schema.md) in a second browser
+#### Automated: `abundroid setup` (recommended)
+
+`abundroid setup` calls the Airtable metadata API to create the base, all five
+tables, every field, every select option, and the Hypertext example
+Organization and Source, then writes the resulting base ID into `.env`. It
+does **not** create views, the Interface, or the runtime access token; those
+three steps stay manual (sections 9 through 12 of the
+[Airtable build guide](airtable-schema.md)).
+
+1. Open Airtable's [Developer Hub token page](https://airtable.com/create/tokens)
+   and create a one-time token with three scopes: `schema.bases:write` and
+   `schema.bases:read` to create and read the base, tables, and fields, and
+   `data.records:write` to write the Hypertext seed rows. Give it access to the
+   workspace that should own Abundroid. The base does not exist yet, so you
+   cannot scope the token to a base. Copy the value beginning with `pat`.
+2. Find your workspace ID: open Airtable, select the workspace, and read the
+   `wsp...` segment from the browser address bar.
+3. Export both values and run `setup`. Do not put `AIRTABLE_SETUP_TOKEN` in
+   `.env`; it is a one-time credential, not the runtime one.
+
+```powershell
+# Windows
+$env:AIRTABLE_SETUP_TOKEN = "pat_one_time_schema_token"
+$env:AIRTABLE_WORKSPACE_ID = "wsp_your_workspace"
+.\.venv\Scripts\abundroid.exe setup
+```
+
+```bash
+# Ubuntu or macOS
+export AIRTABLE_SETUP_TOKEN=pat_one_time_schema_token
+export AIRTABLE_WORKSPACE_ID=wsp_your_workspace
+./.venv/bin/abundroid setup
+```
+
+`setup` prints the created base ID and confirms it wrote `AIRTABLE_BASE_ID` to
+`.env`. Pass `--no-seed` to skip the Hypertext example Organization and
+Source. Continue with sections 9 through 12 of the
+[Airtable build guide](airtable-schema.md#9-add-the-minimum-saved-views) to
+build the nine saved views, publish the three-page **Abundroid Admin**
+Interface, and create the runtime access token. Revoke
+`AIRTABLE_SETUP_TOKEN` once setup succeeds; it is no longer needed.
+
+#### Manual fallback
+
+Prefer to build the base by hand, or want to understand the schema before
+automating it? Open
+[Build the Abundroid Airtable Base](airtable-schema.md) in a second browser
 tab and follow sections 1 through 11 in order. That guide explains Airtable
 terminology and every click required to:
 
@@ -152,9 +214,11 @@ names, capitalization, and spaces must match exactly.
 
 ### 4. Create the Airtable Token and Find the Base ID
 
-Follow sections 12 and 13 of the
-[Airtable build guide](airtable-schema.md#12-create-the-airtable-personal-access-token).
-You will finish with:
+If you ran `abundroid setup`, the base ID is already written to `.env`; follow
+only section 12 of the
+[Airtable build guide](airtable-schema.md#12-create-the-airtable-personal-access-token)
+to create the runtime token. If you built the base manually, follow sections
+12 and 13. Either way you will finish with:
 
 - A secret personal access token beginning with `pat`.
 - A base ID beginning with `app`.
@@ -164,6 +228,10 @@ access restricted to the Abundroid base. Store the token in a password manager.
 Do not put it in Airtable records, chat, screenshots, or Git.
 
 ### 5. Configure `.env`
+
+If `abundroid setup` already created `.env` for you, skip the copy step below
+and open the existing file directly; `AIRTABLE_BASE_ID` is already set and you
+only need to add `AIRTABLE_API_KEY`.
 
 On Windows, from the repository root:
 

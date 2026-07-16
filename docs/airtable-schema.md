@@ -1,5 +1,10 @@
 # Build the Abundroid Airtable Base
 
+> You can create everything in sections 1-8 automatically with
+> `abundroid setup` (see [SETUP.md](SETUP.md)). Follow the manual steps below
+> only if you prefer to build by hand or need to understand the schema.
+> Sections 9-12 (views, Interface, token) are manual either way.
+
 This is a click-by-click guide for someone who has not used Airtable before.
 Use Airtable in a desktop browser. Create a free Airtable account if you do not
 already have one, then sign in to an account that can create a base. You need
