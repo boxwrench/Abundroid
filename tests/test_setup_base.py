@@ -150,12 +150,10 @@ def test_build_base_adds_link_then_lookup_fields():
     assert types == ["multipleRecordLinks", "multipleRecordLinks", "multipleLookupValues"]
     org_link = field_calls[0]
     assert org_link[1:3] == ("Sources", "Organization")
-    assert org_link[4]["linkedTableId"] == "tbl_Organizations"
-    assert org_link[4]["prefersSingleRecordLink"] is True
+    assert org_link[4] == {"linkedTableId": "tbl_Organizations"}
     src_link = field_calls[1]
     assert src_link[1:3] == ("Source Runs", "Source")
-    assert src_link[4]["linkedTableId"] == "tbl_Sources"
-    assert src_link[4]["prefersSingleRecordLink"] is True
+    assert src_link[4] == {"linkedTableId": "tbl_Sources"}
     lookup = field_calls[2]
     assert lookup[4]["recordLinkFieldId"] == "fld_Sources_Organization"
     assert lookup[4]["fieldIdInLinkedTable"] == "fld_Organizations_Name"

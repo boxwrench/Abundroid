@@ -50,10 +50,14 @@ def build_base(api, workspace_id, *, seed: bool = True) -> str:
 
     for link in schema.LINK_FIELDS:
         linked_id = tables[link["linked_table"]].id
+        # Airtable's create-field endpoint rejects prefersSingleRecordLink and
+        # its field-update endpoint only changes name/description, so the
+        # single-record-link preference cannot be set through the API. The field
+        # is created link-capable-to-many; the seed and collector use one link.
         tables[link["table"]].create_field(
             link["name"],
             "multipleRecordLinks",
-            options={"linkedTableId": linked_id, "prefersSingleRecordLink": link["single"]},
+            options={"linkedTableId": linked_id},
         )
 
     for lookup in schema.LOOKUP_FIELDS:
