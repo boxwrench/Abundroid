@@ -66,6 +66,34 @@ Source is visible from the Interface.
   that deterministic rules cannot handle.
 - Add public output only for an approved audience and publishing workflow.
 
+## Feedback: Candidate Directions
+
+Recorded from stakeholder feedback during live validation. These are desired
+directions, not committed scope. Each needs its own design pass before work
+begins, and none preempts the current validation milestone.
+
+### Event tracking
+
+Operators want to track events, not only publications. The Item model already
+carries the needed fields (`Kind = event`, Scheduled Start, Scheduled End,
+Location), so events can join the single Item stream rather than forming a
+separate pipeline. The earlier calendar pipeline was removed as undeployed;
+reinstating event ingestion should reuse those scheduled-item fields and the
+same identity, review, and archive machinery.
+
+### Local legislation
+
+There is demand to track local legislation and the public meetings attached to
+it. This is a new domain beyond RSS or Atom and needs a dedicated source
+adapter.
+
+**Candidate approach: Legistar.** Many local governments run Granicus Legistar,
+which exposes a Web API (legislative matters, agenda items, meetings, votes) and
+per-jurisdiction iCal or RSS calendar feeds. One Legistar adapter could feed
+both the legislation need (matters as Items) and the event-tracking need
+(meetings as scheduled Items). Evaluate the Legistar Web API and its feed
+formats in a design pass before committing.
+
 ## Scale and Handoff
 
 - Scale to 30-50 organizations and multiple Sources per organization.
