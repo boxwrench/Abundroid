@@ -35,15 +35,18 @@ machinery. One adapter serves both event tracking and Legistar meetings.
 
 ## Key decisions
 
-| Decision | Choice |
-|---|---|
-| Recurring events | **Skip events with an `RRULE`** in v1 rather than ingest a misleading single occurrence. Documented limitation. Government meeting calendars typically export discrete dated meetings, so this should drop few or none for the target use case. |
-| Parsing | Use the `icalendar` library (new dependency). Do not hand-roll iCal parsing (folding, escaping, timezones). |
-| Timezones | Normalize all event datetimes to timezone-aware **UTC**. Floating (no-TZID) datetimes are treated as UTC with a documented caveat. All-day (`DATE`) events become that date at 00:00 UTC. |
-| `published_at` | Left empty for events (avoids content-hash churn from `DTSTAMP` regeneration); identity and sorting rely on `scheduled_start`. |
-| Malformed events | An event missing `DTSTART` or failing to parse is skipped, not fatal — the run continues (matches existing failure isolation). |
-| Format value | `ical`, parallel to `rss`. |
-| Item limit | None in v1, matching the RSS adapter. |
+| Decision | Choice (v1) | Why this choice |
+|---|---|---|
+| Recurring events (`RRULE`) | **Skip** events that carry an `RRULE` | Ingesting only the base occurrence would be misleading; government meeting calendars usually list discrete dated meetings, so few or none should drop (Open Item #1). Bounded expansion deferred to a later version. |
+| Parsing | Use the **`icalendar`** library (new dependency) | iCal folding, escaping, and timezone rules are error-prone; hand-rolling would be the least safe option. |
+| Timezones | Normalize all datetimes to tz-aware **UTC** | Matches how the collector already stores datetimes. Floating (no-`TZID`) times treated as UTC (documented caveat); all-day (`DATE`) events → date at 00:00 UTC. |
+| `published_at` | Left **empty** for events | `DTSTAMP` regenerates on every export and would churn the change-detection hash, flagging every event as changed each run. Identity and sorting use `scheduled_start`. |
+| Malformed events | **Skip** the event, continue the run | Matches the collector's existing failure isolation — one bad event never drops the rest of the feed. |
+| Format value | **`ical`** | Parallel to the existing `rss` value; one Format select gains one option. |
+| Item limit | **None** in v1 | Matches the RSS adapter; `.ics` feeds are already bounded in size. |
+
+Every row above is a settled v1 decision. The only one gated on real-world data
+is Recurring events — see Open Item #1.
 
 ## Architecture
 
