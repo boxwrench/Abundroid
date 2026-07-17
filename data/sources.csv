@@ -1,2 +1,5 @@
 organization,name,url,format,default_kind,active,notes
-Hypertext,Hypertext journal feed,https://hypertext.niskanencenter.org/feed/,rss,article,true,Niskanen Center journal on public goods competitive markets and state capacity
+Hypertext,Hypertext journal feed,https://hypertext.niskanencenter.org/feed/,rss,article,true,Niskanen Center journal on public goods competitive markets and state capacity; Substack feed found by adding /feed/
+Sightline Institute,Sightline Institute feed,https://www.sightline.org/feed/,rss,article,true,Cascadia think tank on housing zoning and clean-energy policy; strong source for state and local legislation; WordPress feed at /feed/
+Institute for Progress,Institute for Progress feed,https://ifp.org/feed/,rss,article,true,Think tank on permitting science funding and state capacity; tracks federal reform bills; WordPress feed at /feed/
+Employ America,Employ America feed,https://www.employamerica.org/rss/,rss,article,true,Macroeconomic and labor-market policy; Fed and monetary focus more than legislation; feed lives at /rss/ not /feed/
