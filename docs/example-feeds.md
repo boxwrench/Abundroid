@@ -21,6 +21,30 @@ styled web page. See "How to find a feed" in
 These four are also the seeded/example Sources in
 [`data/sources.csv`](../data/sources.csv).
 
+## Aggregators and discovery feeds (verified 2026-07)
+
+Single feeds that surface many sources at once. Useful for discovery, but
+higher-noise, so lean on the review queue.
+
+| Source | Feed URL | Focus |
+|---|---|---|
+| Works in Progress | `https://www.worksinprogress.news/feed` | Progress studies: growth, science, cities |
+| Construction Physics | `https://www.construction-physics.com/feed` | Building, infrastructure, construction cost |
+| Statecraft | `https://www.statecraft.pub/feed` | How government actually implements policy |
+| Slow Boring | `https://www.slowboring.com/feed` | Abundance-adjacent politics and policy |
+
+**Google News query feed (a technique, not one feed).** Google News turns any
+search into an RSS feed:
+
+```
+https://news.google.com/rss/search?q=YOUR+QUERY&hl=en-US&gl=US&ceid=US:en
+```
+
+For example `q=YIMBY+housing+legislation` returns cross-outlet coverage. Powerful
+for topic monitoring, with caveats: results are noisy and off-topic items appear,
+links are Google redirect URLs, and Google may rate-limit heavy use. Treat it as
+a discovery source that leans hard on human review, not a clean publisher feed.
+
 ## To verify (candidates — confirm the feed before adding)
 
 Named during planning but not yet checked. Try the org's site, then `/feed/`,
