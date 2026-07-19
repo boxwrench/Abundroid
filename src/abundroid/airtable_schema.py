@@ -39,7 +39,7 @@ SIMPLE_TABLES = [
         "fields": [
             {"name": "Name", "type": "singleLineText"},
             {"name": "URL", "type": "url"},
-            {"name": "Format", "type": "singleSelect", "options": _select([{"name": "rss"}])},
+            {"name": "Format", "type": "singleSelect", "options": _select([{"name": "rss"}, {"name": "ical"}])},
             {"name": "Default Kind", "type": "singleSelect", "options": _select(_KIND_CHOICES)},
             {"name": "Active", "type": "checkbox", "options": _CHECKBOX},
             {"name": "Notes", "type": "multilineText"},

@@ -1,6 +1,7 @@
 '''Tests for the unified published-items pipeline.'''
 
-from abundroid.item_pipeline import run_item_pipeline
+from abundroid.item_pipeline import ITEM_ADAPTERS, run_item_pipeline
+from abundroid.adapters import ical
 from abundroid.models import Item, Source, Topic
 
 
@@ -147,3 +148,7 @@ def test_pipeline_produces_source_runs_with_injections():
     run_broken = [r for r in runs if r.source_id == "recSrcBroken"][0]
     assert run_broken.result == "failure"
     assert "unknown source format: unknown" in run_broken.error
+
+
+def test_ical_format_is_registered():
+    assert ITEM_ADAPTERS["ical"] is ical.parse_items

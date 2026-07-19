@@ -56,20 +56,26 @@ Named during planning but not yet checked. Try the org's site, then `/feed/`,
 - Abundance Institute
 - Regional and national YIMBY organizations (housing legislation)
 
-## Needs an adapter (not usable as an RSS Source yet)
+## iCal calendar Sources (usable now, `ical` format)
 
-These are **Tier 2** on the [roadmap](ROADMAP.md#feedback-candidate-directions):
-they publish structured calendar data as iCalendar (`.ics`), which the current
-RSS/Atom collector cannot read. They wait on a future iCal adapter.
+Abundroid's iCal adapter (v1) reads `.ics` calendar feeds directly, so these no
+longer wait on a future adapter — add them as Sources with **Format** set to
+`ical` and **Default Kind** set to `event`. The adapter only picks up concrete,
+dated events; **recurring events (those defined with an `RRULE`) are skipped
+in v1**, so a recurring series only appears if the feed also lists its
+occurrences as individual (non-recurring) VEVENTs.
 
 - **Legistar meeting calendars** — e.g., the San Francisco Board of Supervisors
-  Legistar calendar offers `.ics` exports, not RSS. Legistar RSS (`Feed.ashx`)
-  exists on some older portals but requires a live per-jurisdiction subscription
-  URL; the flagship portals have moved to iCal.
+  Legistar calendar offers `.ics` exports and works as an `ical` Source today.
+  Legistar RSS (`Feed.ashx`) exists on some older portals but requires a live
+  per-jurisdiction subscription URL and is jurisdiction-dependent; most
+  flagship portals have moved to iCal-only. The Legistar **Web API** (bill text
+  and status, not just meeting calendars) is a separate integration and
+  remains **Tier 2** on the
+  [roadmap](ROADMAP.md#feedback-candidate-directions).
 - **Event calendars** — most event platforms (Eventbrite, Meetup) dropped RSS;
-  they expose iCal or an API. There is no reliable RSS event aggregator.
-
-One iCal/ICS adapter would unlock both Legistar meetings and event calendars.
+  they expose iCal or an API. Their `.ics` exports now work as `ical` Sources,
+  subject to the same recurring-event caveat above.
 
 ## Expanding this list
 

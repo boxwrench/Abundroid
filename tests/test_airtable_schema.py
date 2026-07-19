@@ -44,9 +44,9 @@ def test_items_status_options():
     }
 
 
-def test_format_option_is_only_rss():
+def test_format_options_include_rss_and_ical():
     choices = {c["name"] for c in _field("Sources", "Format")["options"]["choices"]}
-    assert choices == {"rss"}
+    assert choices == {"rss", "ical"}
 
 
 def test_checkboxes_have_required_icon_and_color():
