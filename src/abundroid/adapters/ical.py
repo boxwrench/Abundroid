@@ -6,7 +6,7 @@ skipped in v1; datetimes are normalized to timezone-aware UTC.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from icalendar import Calendar
 
@@ -33,12 +33,14 @@ def _text(component, key) -> str:
 
 
 def _end(component, start: datetime | None) -> datetime | None:
-    # Known v1 limitation: per RFC 5545, an all-day DTEND is exclusive (the
-    # day after the event's actual last day). v1 does not adjust for this;
-    # follow-up work should correct all-day DTEND handling.
     dtend = component.get("DTEND")
     if dtend is not None:
-        return _to_utc(dtend.dt)
+        end_value = dtend.dt
+        # RFC 5545: an all-day DTEND is exclusive (the day after the event's
+        # last day), so the inclusive last day is one day earlier.
+        if isinstance(end_value, date) and not isinstance(end_value, datetime):
+            end_value = end_value - timedelta(days=1)
+        return _to_utc(end_value)
     duration = component.get("DURATION")
     if duration is not None and start is not None:
         return start + duration.dt
@@ -51,9 +53,9 @@ def parse_items(text: str, source: Source) -> list[Item]:
     items: list[Item] = []
 
     for component in calendar.walk("VEVENT"):
-        if component.get("RRULE"):
-            continue
         try:
+            if component.get("RRULE"):
+                continue
             dtstart = component.get("DTSTART")
             title = _text(component, "SUMMARY")
             if dtstart is None or not title:
