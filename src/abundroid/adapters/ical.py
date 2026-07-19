@@ -33,6 +33,9 @@ def _text(component, key) -> str:
 
 
 def _end(component, start: datetime | None) -> datetime | None:
+    # Known v1 limitation: per RFC 5545, an all-day DTEND is exclusive (the
+    # day after the event's actual last day). v1 does not adjust for this;
+    # follow-up work should correct all-day DTEND handling.
     dtend = component.get("DTEND")
     if dtend is not None:
         return _to_utc(dtend.dt)

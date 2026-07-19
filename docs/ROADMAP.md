@@ -94,11 +94,14 @@ archive machinery.
   already announce or aggregate events through RSS or newsletters enter the
   existing pipeline as Items, populating the scheduled-item fields with whatever
   the feed provides.
-- **Tier 2 — structured calendars (later, needs an iCal adapter).** Modern
-  calendars — organization events, Legistar meetings, event platforms — export
-  iCalendar (`.ics`), not RSS. A single iCal/ICS adapter would populate reliable
-  start, end, and location data and serve both events and Legistar meetings.
-  RSS event aggregators are effectively extinct, so there is no shortcut here.
+- **Tier 2 — structured calendars (shipped).** Modern calendars — organization
+  events, Legistar meetings, event platforms — export iCalendar (`.ics`), not
+  RSS. The iCal adapter now ships: set a Source's **Format** to `ical` to pull
+  reliable start, end, and location data for concrete, dated events, covering
+  both organization events and Legistar meeting calendars. **Recurring
+  (`RRULE`) events are skipped in v1** — a Source built from a recurring
+  series only surfaces occurrences the feed also lists as individual,
+  non-recurring entries.
 
 ### Local legislation
 
@@ -111,13 +114,15 @@ attached to it.
   Candidate curators to check for feeds: Sightline Institute, Institute for
   Progress, Employ America, Mercatus, Center for Growth and Opportunity, EIG,
   YIMBY organizations, and the Substack roundups many of them run.
-- **Tier 2 — structured legislative data (later, needs an adapter).** For
-  systematic coverage the curators miss, in two shapes: (a) **meeting
-  calendars**, now distributed as iCal — the same iCal adapter that serves
-  events covers Legistar meetings (for example, the San Francisco Board of
-  Supervisors calendar is `.ics`-only, no RSS); (b) **bill text and status via
-  API** — the Granicus **Legistar Web API** (municipal) and **OpenStates/Plural**
-  or **LegiScan** (all fifty states). Evaluate in a design pass before committing.
+- **Tier 2 — structured legislative data.** Two shapes, one shipped and one
+  still future work: (a) **meeting calendars** — shipped. The same iCal
+  adapter that serves events covers Legistar meetings now (for example, the
+  San Francisco Board of Supervisors calendar is `.ics`-only, no RSS), subject
+  to the same v1 caveat that recurring (`RRULE`) meeting series are skipped;
+  (b) **bill text and status via API (later, needs an adapter)** — the
+  Granicus **Legistar Web API** (municipal) and **OpenStates/Plural** or
+  **LegiScan** (all fifty states) remain unbuilt. Evaluate in a design pass
+  before committing.
 
 ## Scale and Handoff
 

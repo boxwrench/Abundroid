@@ -62,8 +62,8 @@ Abundroid's iCal adapter (v1) reads `.ics` calendar feeds directly, so these no
 longer wait on a future adapter — add them as Sources with **Format** set to
 `ical` and **Default Kind** set to `event`. The adapter only picks up concrete,
 dated events; **recurring events (those defined with an `RRULE`) are skipped
-in v1**, so a Source built from a recurring meeting series will only surface
-occurrences that are also published as standalone (non-recurring) entries.
+in v1**, so a recurring series only appears if the feed also lists its
+occurrences as individual (non-recurring) VEVENTs.
 
 - **Legistar meeting calendars** — e.g., the San Francisco Board of Supervisors
   Legistar calendar offers `.ics` exports and works as an `ical` Source today.
