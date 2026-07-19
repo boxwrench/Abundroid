@@ -105,3 +105,36 @@ def test_event_without_title_is_skipped():
         "DTSTART:20260720T190000Z\r\nEND:VEVENT"
     )
     assert ical.parse_items(_ics(vevent), SOURCE) == []
+
+
+def test_all_day_dtend_is_exclusive_last_day():
+    # RFC 5545: an all-day DTEND is exclusive (the day after the last day).
+    vevent = (
+        "BEGIN:VEVENT\r\nUID:multiday@example.org\r\nSUMMARY:Budget Week\r\n"
+        "DTSTART;VALUE=DATE:20260721\r\nDTEND;VALUE=DATE:20260724\r\nEND:VEVENT"
+    )
+    items = ical.parse_items(_ics(vevent), SOURCE)
+    assert items[0].scheduled_start == datetime(2026, 7, 21, 0, 0, tzinfo=timezone.utc)
+    # DTEND 07-24 is exclusive -> inclusive last day is 07-23
+    assert items[0].scheduled_end == datetime(2026, 7, 23, 0, 0, tzinfo=timezone.utc)
+
+
+def test_event_raising_during_parse_is_skipped_siblings_survive(monkeypatch):
+    # Exercises the per-event try/except: if parsing one event raises, it is
+    # skipped and the rest of the feed still ingests.
+    original = ical._to_utc
+    state = {"first": True}
+
+    def flaky(value):
+        if state["first"]:
+            state["first"] = False
+            raise ValueError("boom")
+        return original(value)
+
+    monkeypatch.setattr(ical, "_to_utc", flaky)
+    bad = (
+        "BEGIN:VEVENT\r\nUID:raise@example.org\r\nSUMMARY:Explodes\r\n"
+        "DTSTART:20260720T080000Z\r\nEND:VEVENT"
+    )
+    items = ical.parse_items(_ics(bad, TIMED), SOURCE)
+    assert [i.title for i in items] == ["City Council Meeting"]
