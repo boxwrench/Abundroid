@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from abundroid.adapters import rss
+from abundroid.adapters import rss, ical
 from abundroid.classifier import tag_items
 from abundroid.item_dedupe import flag_possible_item_duplicates
 from abundroid.item_uid import compute_item_uid, item_content_hash
 from abundroid.fetch import default_fetch
 
 
-ITEM_ADAPTERS = {'rss': rss.parse_items}
+ITEM_ADAPTERS = {'rss': rss.parse_items, 'ical': ical.parse_items}
 
 
 def run_item_pipeline(
