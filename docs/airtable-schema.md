@@ -106,7 +106,7 @@ Open **Sources** and create these fields in order:
 | Organization | Link to another record | Link to **Organizations**; turn off linking to multiple records |
 | Organization Name | Lookup | Source: **Organization**; field to look up: **Name** |
 | URL | URL | Exact public RSS or Atom endpoint |
-| Format | Single select | Add only `rss` |
+| Format | Single select | Add `rss` and `ical`. Use `rss` for RSS and Atom; use `ical` for iCalendar (.ics) event calendars |
 | Default Kind | Single select | Add `article`, `post`, `update`, `announcement`, `report`, `event`, `other` |
 | Active | Checkbox | Checked means this Source may run |
 | Notes | Long text | Setup or troubleshooting notes |

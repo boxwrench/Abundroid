@@ -133,6 +133,17 @@ organization,name,url,format,default_kind,active,notes
 Hypertext,Hypertext journal feed,https://hypertext.niskanencenter.org/feed/,rss,article,true,
 ```
 
+To collect an event calendar instead of an article feed, use an `.ics` URL,
+set `format` to `ical`, and set `default_kind` to `event`:
+
+```csv
+organization,name,url,format,default_kind,active,notes
+City Council,Meeting calendar,https://example.gov/calendar.ics,ical,event,true,
+```
+
+The iCal adapter reads concrete calendar events; recurring events (those
+defined with an `RRULE`) are skipped in this version.
+
 Windows:
 
 ```powershell
@@ -284,13 +295,17 @@ In **Sources**, create one row:
 |---|---|
 | Name | Friendly label such as `News feed` |
 | Organization | Select the Organization above |
-| URL | Real public RSS or Atom URL |
-| Format | `rss` |
+| URL | Real public RSS or Atom URL, or `.ics` calendar URL |
+| Format | `rss` or `ical` |
 | Default Kind | Usually `article`, `post`, or `update` |
 | Active | Checked |
 
 Use `rss` in **Format** for an Atom feed too. Abundroid handles RSS and Atom
 with the same parser, so Airtable does not need an `atom` option.
+
+Use `ical` in **Format** for an iCalendar (`.ics`) feed instead, and set
+**Default Kind** to `event`. The iCal adapter reads concrete calendar events;
+recurring events (those defined with an `RRULE`) are skipped in this version.
 
 **Organization Name** must fill itself after you select the Organization. If it
 stays blank, repair the Lookup field before continuing. Topics may remain empty.
